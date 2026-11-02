@@ -1,0 +1,43 @@
+# Роверы. JetPack 6.2 / L4T R36 (на платах R36.4.3–R36.5), Ubuntu 22.04, ROS 2 Humble.
+# Камера и NVENC в образ не входят: их монтирует Helm или jetson_docker.sh с хоста.
+#
+# l4t-base новее r36.2.0 NVIDIA не публикует. Этот тег — Ubuntu 22.04, тот же
+# userspace, что на ровере; библиотеки Tegra приходят с хоста и линкуются.
+# Другой mirror той же Ubuntu: --build-arg BASE_IMAGE=ubuntu:22.04.
+# JetPack 7.2 этим файлом не собирается — для робособак docker/Dockerfile.jp72.
+#
+# Контекст — каталог capture-pipeline:
+#   docker build -f docker/Dockerfile.jp62 -t capture-pipeline:jp62 .
+
+ARG BASE_IMAGE=cr.selcloud.ru/sandbox/last-mile/drivers/l4t-base:r36.2.0
+FROM ${BASE_IMAGE}
+
+ARG ROS_DISTRO=humble
+ARG ROS_APT_SUITE=jammy
+
+COPY docker/install.sh /tmp/install.sh
+RUN ROS_DISTRO="${ROS_DISTRO}" ROS_APT_SUITE="${ROS_APT_SUITE}" bash /tmp/install.sh apt
+RUN ROS_DISTRO="${ROS_DISTRO}" ROS_APT_SUITE="${ROS_APT_SUITE}" bash /tmp/install.sh ros
+
+WORKDIR /opt/nav_ws
+COPY third_party/gstreamer_ros_babel_fish src/gstreamer_ros_babel_fish
+RUN ROS_DISTRO="${ROS_DISTRO}" bash /tmp/install.sh babel
+
+WORKDIR /app
+COPY main.py ./
+COPY capture_pipeline ./capture_pipeline
+COPY configs ./configs
+COPY chart/files/dds/cyclonedds.xml /rmw/cyclonedds.xml
+COPY docker/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh \
+    && ROS_DISTRO="${ROS_DISTRO}" bash /tmp/install.sh shell \
+    && rm -f /tmp/install.sh
+
+ENV CONFIG_PATH=/config/config.yaml
+ENV PYTHONUNBUFFERED=1
+ENV ROS_DISTRO=${ROS_DISTRO}
+ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+ENV ROS_DOMAIN_ID=0
+ENV CYCLONEDDS_URI=file:///rmw/cyclonedds.xml
+
+ENTRYPOINT ["/app/entrypoint.sh"]

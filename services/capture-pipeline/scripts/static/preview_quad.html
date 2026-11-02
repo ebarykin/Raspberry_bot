@@ -1,0 +1,2657 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RTSP Lab — capture-pipeline</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /*
+      Intent: video QA lab.
+      - Hero = mosaic | ABR rail
+      - Full-width journal under main (max readable width)
+    */
+    :root {
+      --bg: #f3f3f5;
+      --bg-top: #fafafa;
+      --panel: #ffffff;
+      --panel-2: #f5f5f7;
+      --ink: #1d1d1f;
+      --muted: #6e6e73;
+      --line: #e5e5ea;
+      --line-2: #d2d2d7;
+      --accent: #0078d4;
+      --ok: #107c10;
+      --ok-bg: #e6f4e6;
+      --warn: #9a6700;
+      --warn-bg: #fff4ce;
+      --bad: #c42b1c;
+      --bad-bg: #fde7e9;
+      --video: #e8eaed;
+      --tile-bg: #ffffff;
+      --tile-bar: #f5f5f7;
+      --pill-surface: #ffffff;
+      --console-raised: #ffffff;
+      --console-inset: #f5f5f7;
+      --console-border: #e5e5ea;
+      --console-text: #1d1d1f;
+      --console-muted: #6e6e73;
+      --console-ok: #107c10;
+      --console-err: #c42b1c;
+      --console-meta: #6e6e73;
+      --console-req: #0078d4;
+      --console-dir-req: #5b6570;
+      --console-dir-res: #7a6f64;
+      --radius: 8px; /* panels: wall, side, console, foot; header .top = square */
+      --theme-glow: rgba(0, 120, 212, 0.08);
+      --mono: "IBM Plex Mono", ui-monospace, monospace;
+      --sans: "IBM Plex Sans", "Segoe UI", sans-serif;
+      --display: "Space Grotesk", "IBM Plex Sans", sans-serif;
+      --meter-bg: #ffffff;
+
+      --q-good: #0e7a3a;
+      --q-good-bg: #e8f5ee;
+      --q-good-edge: #9dceb0;
+      --q-normal: #0067b8;
+      --q-normal-bg: #e8f2fb;
+      --q-normal-edge: #9ec3e6;
+      --q-degraded: #9a6700;
+      --q-degraded-bg: #fff6dd;
+      --q-degraded-edge: #e0c57a;
+      --q-bad: #c45a12;
+      --q-bad-bg: #fdebe3;
+      --q-bad-edge: #e0a882;
+      --q-critical: #c42b1c;
+      --q-critical-bg: #fde7e9;
+      --q-critical-edge: #e0a0a0;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: var(--sans);
+      color: var(--ink);
+      background:
+        radial-gradient(900px 480px at 78% -12%, var(--theme-glow), transparent 55%),
+        linear-gradient(180deg, var(--bg-top) 0%, var(--bg) 55%);
+      transition: background 0.35s ease, color 0.25s ease;
+      overflow-y: auto;
+    }
+    /* Ручные скины страницы (не путать с ABR severity). Лишние потом выкинем. */
+    body.skin-day {
+      --bg: #f3f3f5;
+      --bg-top: #fafafa;
+      --panel: #ffffff;
+      --panel-2: #f5f5f7;
+      --ink: #1d1d1f;
+      --muted: #6e6e73;
+      --line: #e5e5ea;
+      --line-2: #d2d2d7;
+      --accent: #0078d4;
+      --theme-glow: rgba(0, 120, 212, 0.08);
+      --video: #e8eaed;
+      --tile-bg: #ffffff;
+      --tile-bar: #f5f5f7;
+      --pill-surface: #ffffff;
+      --console-raised: #ffffff;
+      --console-inset: #f5f5f7;
+      --console-border: #e5e5ea;
+      --console-text: #1d1d1f;
+      --console-muted: #6e6e73;
+      --console-ok: #107c10;
+      --console-err: #c42b1c;
+      --console-meta: #6e6e73;
+      --console-req: #0078d4;
+      --console-dir-req: #5b6570;
+      --console-dir-res: #7a6f64;
+      --meter-bg: #ffffff;
+    }
+    /* Cool gray lab — без синего Fluent. */
+    body.skin-mist {
+      --bg: #eef1f4;
+      --bg-top: #f7f9fb;
+      --panel: #ffffff;
+      --panel-2: #e8edf2;
+      --ink: #1a2330;
+      --muted: #5c6b7a;
+      --line: #d5dde6;
+      --line-2: #c2ccd8;
+      --accent: #3d6b8c;
+      --theme-glow: rgba(61, 107, 140, 0.1);
+      --video: #dfe6ec;
+      --tile-bg: #ffffff;
+      --tile-bar: #eef2f6;
+      --pill-surface: #ffffff;
+      --console-raised: #ffffff;
+      --console-inset: #eef2f6;
+      --console-border: #d5dde6;
+      --console-text: #1a2330;
+      --console-muted: #5c6b7a;
+      --console-ok: #2f6b45;
+      --console-err: #b42318;
+      --console-meta: #5c6b7a;
+      --console-req: #3d6b8c;
+      --console-dir-req: #4a5a6a;
+      --console-dir-res: #6a5f54;
+      --meter-bg: #ffffff;
+      --ok: #2f6b45;
+      --ok-bg: #e4f0e8;
+      --warn: #8a6a12;
+      --warn-bg: #f7efd4;
+      --bad: #b42318;
+      --bad-bg: #fce8e6;
+      --q-good: #2f6b45;
+      --q-good-bg: #e4f0e8;
+      --q-good-edge: #9bc4a8;
+      --q-normal: #3d6b8c;
+      --q-normal-bg: #e6eef4;
+      --q-normal-edge: #9bb4c8;
+      --q-degraded: #8a6a12;
+      --q-degraded-bg: #f7efd4;
+      --q-degraded-edge: #d4c08a;
+      --q-bad: #b85a20;
+      --q-bad-bg: #f8ebe3;
+      --q-bad-edge: #d4a888;
+      --q-critical: #b42318;
+      --q-critical-bg: #fce8e6;
+      --q-critical-edge: #d4a0a0;
+    }
+    /* Neutral zinc / instrument. */
+    body.skin-zinc {
+      --bg: #f4f4f5;
+      --bg-top: #fafafa;
+      --panel: #ffffff;
+      --panel-2: #f4f4f5;
+      --ink: #18181b;
+      --muted: #71717a;
+      --line: #e4e4e7;
+      --line-2: #d4d4d8;
+      --accent: #3f3f46;
+      --theme-glow: rgba(63, 63, 70, 0.06);
+      --video: #e4e4e7;
+      --tile-bg: #ffffff;
+      --tile-bar: #f4f4f5;
+      --pill-surface: #ffffff;
+      --console-raised: #ffffff;
+      --console-inset: #f4f4f5;
+      --console-border: #e4e4e7;
+      --console-text: #18181b;
+      --console-muted: #71717a;
+      --console-ok: #15803d;
+      --console-err: #b91c1c;
+      --console-meta: #71717a;
+      --console-req: #52525b;
+      --console-dir-req: #52525b;
+      --console-dir-res: #78716c;
+      --meter-bg: #ffffff;
+      --ok: #15803d;
+      --ok-bg: #ecfdf3;
+      --warn: #a16207;
+      --warn-bg: #fef9c3;
+      --bad: #b91c1c;
+      --bad-bg: #fef2f2;
+      --q-good: #15803d;
+      --q-good-bg: #ecfdf3;
+      --q-good-edge: #86efac;
+      --q-normal: #2563eb;
+      --q-normal-bg: #eff6ff;
+      --q-normal-edge: #93c5fd;
+      --q-degraded: #a16207;
+      --q-degraded-bg: #fef9c3;
+      --q-degraded-edge: #fde047;
+      --q-bad: #c2410c;
+      --q-bad-bg: #fff7ed;
+      --q-bad-edge: #fdba74;
+      --q-critical: #b91c1c;
+      --q-critical-bg: #fef2f2;
+      --q-critical-edge: #fca5a5;
+    }
+    /* Soft teal lab (светлый). */
+    body.skin-sea {
+      --bg: #eef5f4;
+      --bg-top: #f6fbfa;
+      --panel: #ffffff;
+      --panel-2: #e6f0ee;
+      --ink: #142820;
+      --muted: #5a726c;
+      --line: #d0e0dc;
+      --line-2: #b9cfc9;
+      --accent: #0f766e;
+      --theme-glow: rgba(15, 118, 110, 0.1);
+      --video: #dceae7;
+      --tile-bg: #ffffff;
+      --tile-bar: #eef6f4;
+      --pill-surface: #ffffff;
+      --console-raised: #ffffff;
+      --console-inset: #eef6f4;
+      --console-border: #d0e0dc;
+      --console-text: #142820;
+      --console-muted: #5a726c;
+      --console-ok: #157a4b;
+      --console-err: #b42318;
+      --console-meta: #5a726c;
+      --console-req: #0f766e;
+      --console-dir-req: #3d5c56;
+      --console-dir-res: #6b5e52;
+      --meter-bg: #ffffff;
+      --ok: #157a4b;
+      --ok-bg: #e3f5ec;
+      --warn: #8a6a12;
+      --warn-bg: #f7efd4;
+      --bad: #b42318;
+      --bad-bg: #fce8e6;
+      --q-good: #157a4b;
+      --q-good-bg: #e3f5ec;
+      --q-good-edge: #8fc9a8;
+      --q-normal: #0f766e;
+      --q-normal-bg: #e0f2f1;
+      --q-normal-edge: #7dbdb8;
+      --q-degraded: #8a6a12;
+      --q-degraded-bg: #f7efd4;
+      --q-degraded-edge: #d4c08a;
+      --q-bad: #b85a20;
+      --q-bad-bg: #f8ebe3;
+      --q-bad-edge: #d4a888;
+      --q-critical: #b42318;
+      --q-critical-bg: #fce8e6;
+      --q-critical-edge: #d4a0a0;
+    }
+    body.skin-night {
+      --bg: #1e1e1e;
+      --bg-top: #252526;
+      --panel: #252526;
+      --panel-2: #2d2d2d;
+      --ink: #cccccc;
+      --muted: #9d9d9d;
+      --line: #3c3c3c;
+      --line-2: #474747;
+      --accent: #3794ff;
+      --theme-glow: rgba(55, 148, 255, 0.1);
+      --video: #141414;
+      --tile-bg: #252526;
+      --tile-bar: #2d2d2d;
+      --pill-surface: #2d2d2d;
+      --console-raised: #252526;
+      --console-inset: #1e1e1e;
+      --console-border: #3c3c3c;
+      --console-text: #d4d4d4;
+      --console-muted: #9d9d9d;
+      --console-ok: #89d185;
+      --console-err: #f48771;
+      --console-meta: #858585;
+      --console-req: #9cdcfe;
+      --console-dir-req: #9aa3ad;
+      --console-dir-res: #b0a89e;
+      --meter-bg: #2d2d2d;
+      --ok: #89d185;
+      --ok-bg: #1e3a28;
+      --warn: #cca700;
+      --warn-bg: #3a3218;
+      --bad: #f48771;
+      --bad-bg: #3a1d1d;
+      --q-good: #89d185;
+      --q-good-bg: #1e3a28;
+      --q-good-edge: #3e6b4a;
+      --q-normal: #4fc1ff;
+      --q-normal-bg: #163a4d;
+      --q-normal-edge: #2a6a8a;
+      --q-degraded: #cca700;
+      --q-degraded-bg: #3a3218;
+      --q-degraded-edge: #6b5a18;
+      --q-bad: #ce9178;
+      --q-bad-bg: #3a2a1d;
+      --q-bad-edge: #6b4a30;
+      --q-critical: #f48771;
+      --q-critical-bg: #3a1d1d;
+      --q-critical-edge: #6b3030;
+    }
+    /* Dark charcoal + cyan. */
+    body.skin-carbon {
+      --bg: #121417;
+      --bg-top: #181b20;
+      --panel: #1c2026;
+      --panel-2: #242a32;
+      --ink: #d7dde5;
+      --muted: #8b95a3;
+      --line: #2e3640;
+      --line-2: #3a4450;
+      --accent: #3db8c5;
+      --theme-glow: rgba(61, 184, 197, 0.1);
+      --video: #0e1013;
+      --tile-bg: #1c2026;
+      --tile-bar: #242a32;
+      --pill-surface: #242a32;
+      --console-raised: #1c2026;
+      --console-inset: #14181d;
+      --console-border: #2e3640;
+      --console-text: #d7dde5;
+      --console-muted: #8b95a3;
+      --console-ok: #6ecf8e;
+      --console-err: #f07178;
+      --console-meta: #8b95a3;
+      --console-req: #3db8c5;
+      --console-dir-req: #8b95a3;
+      --console-dir-res: #a89f90;
+      --meter-bg: #242a32;
+      --ok: #6ecf8e;
+      --ok-bg: #1a3224;
+      --warn: #d4a017;
+      --warn-bg: #332a12;
+      --bad: #f07178;
+      --bad-bg: #332020;
+      --q-good: #6ecf8e;
+      --q-good-bg: #1a3224;
+      --q-good-edge: #3e6b4a;
+      --q-normal: #3db8c5;
+      --q-normal-bg: #163038;
+      --q-normal-edge: #2a6a72;
+      --q-degraded: #d4a017;
+      --q-degraded-bg: #332a12;
+      --q-degraded-edge: #6b5a18;
+      --q-bad: #e0a070;
+      --q-bad-bg: #33261c;
+      --q-bad-edge: #6b4a30;
+      --q-critical: #f07178;
+      --q-critical-bg: #332020;
+      --q-critical-edge: #6b3030;
+    }
+    body.tone-dark .meter {
+      background: var(--meter-bg);
+      border-color: var(--line);
+      color: var(--ink);
+    }
+    body.tone-dark .meter em { color: var(--muted); }
+    body.tone-dark .theme-switch {
+      background: transparent;
+      border-color: transparent;
+    }
+    body.tone-dark .abr button.on { color: #fff; }
+    body.tone-dark .abr button.on small { color: #fff; opacity: 0.92; }
+
+    .app {
+      height: auto;
+      min-height: 100vh;
+      max-width: 1500px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-rows: auto auto auto auto;
+      padding: 0 12px 16px;
+      gap: 10px;
+    }
+
+    /* —— top instrument strip —— */
+    .top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 58px;
+      padding: 10px 14px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 0;
+      border-top: none;
+      border-bottom: 1px solid var(--line);
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.03);
+      transition: border-color 0.3s ease;
+      position: relative;
+    }
+    .top::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      height: 2px;
+      background: linear-gradient(
+        90deg,
+        var(--accent) 0%,
+        color-mix(in srgb, var(--accent) 20%, transparent) 42%,
+        transparent 100%
+      );
+      opacity: 0.9;
+    }
+    .top-left {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px 16px;
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      flex-shrink: 0;
+    }
+    .logo {
+      flex-shrink: 0;
+      display: grid;
+      place-items: center;
+    }
+    .logo img.mark-img {
+      display: block;
+      height: 36px;
+      width: auto;
+      object-fit: contain;
+    }
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      min-width: 0;
+    }
+    .brand-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .brand h1 {
+      margin: 0;
+      font-family: var(--display);
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+    }
+    .lab-badge {
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 2px;
+      color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+      cursor: default;
+      user-select: none;
+    }
+    .lab-badge.hot {
+      cursor: pointer;
+    }
+
+    .easter-toast {
+      position: fixed;
+      left: 50%;
+      bottom: 28px;
+      transform: translateX(-50%) translateY(12px);
+      z-index: 300;
+      max-width: min(420px, calc(100vw - 24px));
+      padding: 12px 16px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      text-align: center;
+    }
+    .easter-toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    .easter-toast strong {
+      display: block;
+      font-family: var(--display);
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--ink);
+      letter-spacing: -0.02em;
+    }
+    .easter-toast span {
+      display: block;
+      margin-top: 4px;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+      line-height: 1.4;
+      white-space: pre-line;
+    }
+    .brand .tag {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.03em;
+    }
+    .meters {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+    }
+    .meter {
+      font-family: var(--mono);
+      font-size: 11px;
+      height: 28px;
+      padding: 0 8px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: var(--meter-bg, #fff);
+      color: var(--ink);
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      box-sizing: border-box;
+    }
+    .meter em { font-style: normal; color: var(--muted); margin-right: 6px; }
+    .meter.ok { background: var(--ok-bg); border-color: #8fbfa4; color: var(--ok); }
+    .meter.warn { background: var(--warn-bg); border-color: #d2c28a; color: var(--warn); }
+    .meter.bad { background: var(--bad-bg); border-color: #d0a0a0; color: var(--bad); }
+
+    /* Uplink meters: текущий (ABR) / требуемый (netem rate) */
+    .meter.uplink {
+      gap: 7px;
+      font-weight: 600;
+    }
+    .meter.uplink .val {
+      font-variant-numeric: tabular-nums;
+    }
+    .meter.uplink.over {
+      background: var(--bad-bg);
+      border-color: #d0a0a0;
+      color: var(--bad);
+    }
+    .meter.uplink.over .val {
+      text-shadow: 0 0 10px color-mix(in srgb, var(--bad) 55%, transparent);
+    }
+    .meter.uplink.empty {
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .top-right {
+      flex: 0 0 auto;
+      position: relative;
+    }
+    .settings-btn {
+      width: 32px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--muted);
+      cursor: pointer;
+      border-radius: 6px;
+      padding: 0;
+    }
+    .settings-btn:hover,
+    .settings-btn.open {
+      color: var(--ink);
+      border-color: var(--accent);
+    }
+    .settings-btn svg {
+      width: 16px;
+      height: 16px;
+      display: block;
+    }
+    .settings-pop {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      z-index: 40;
+      min-width: 168px;
+      padding: 8px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    }
+    .settings-pop .label {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0 0 6px 2px;
+    }
+    .theme-switch {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      padding: 0;
+      border: none;
+      background: transparent;
+      max-width: none;
+    }
+    .theme-switch button {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--muted);
+      padding: 6px 8px;
+      cursor: pointer;
+      border-radius: 4px;
+      text-align: center;
+    }
+    .theme-switch button:hover { color: var(--ink); border-color: var(--line-2); }
+    .theme-switch button.on {
+      background: var(--panel);
+      color: var(--ink);
+      box-shadow: inset 0 0 0 1px var(--accent);
+      border-color: var(--accent);
+    }
+    body.tone-dark .theme-switch button.on {
+      background: var(--panel-2);
+      color: #fff;
+      box-shadow: inset 0 0 0 1px var(--accent);
+    }
+
+    /* —— main: video | instruments —— */
+    .main {
+      height: min(72vh, 780px);
+      min-height: 480px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 250px;
+      gap: 10px;
+    }
+
+    .wall {
+      min-height: 0;
+      background: var(--panel);
+      border: 1px solid var(--line-2);
+      border-radius: var(--radius);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+      padding: 8px;
+      display: grid;
+      overflow: hidden;
+    }
+    .mosaic {
+      min-height: 0;
+      height: 100%;
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .tile {
+      background: var(--tile-bg);
+      border: 1px solid var(--line-2);
+      border-radius: 4px;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+      transition: border-color 0.3s ease, background 0.3s ease;
+    }
+    .tile::before {
+      content: "";
+      display: block;
+      height: 2px;
+      background: var(--accent);
+      opacity: 0.85;
+      flex-shrink: 0;
+      transition: background 0.3s ease;
+    }
+    .tile-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 4px 8px;
+      background: var(--tile-bar);
+      border-bottom: 1px solid var(--line);
+      flex-shrink: 0;
+    }
+    .tile-id {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .tile-meta {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 400;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .tile-meta.bad { color: var(--bad); }
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--line-2);
+      flex-shrink: 0;
+    }
+    .dot.live { background: var(--ok); box-shadow: 0 0 0 3px rgba(27, 122, 74, 0.15); }
+    .dot.stale { background: var(--warn); }
+    .dot.no_signal { background: var(--bad); }
+    .port {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 400;
+      color: var(--muted);
+    }
+    .pill {
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 2px 6px;
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      background: var(--pill-surface);
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+    .pill.live { color: var(--ok); background: var(--ok-bg); border-color: #8fbfa4; }
+    .pill.stale { color: var(--warn); background: var(--warn-bg); border-color: #d2c28a; }
+    .pill.no_signal { color: var(--bad); background: var(--bad-bg); border-color: #d0a0a0; }
+
+    .frame {
+      position: relative;
+      flex: 1 1 auto;
+      min-height: 0;
+      background: var(--video);
+    }
+    .frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      background: var(--video);
+    }
+    .frame .wait {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: #7d8696;
+    }
+    .abr-hud {
+      position: absolute;
+      left: 8px;
+      bottom: 8px;
+      top: auto;
+      z-index: 2;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      padding: 5px 9px 5px 8px;
+      pointer-events: none;
+      border: 1px solid transparent;
+      border-left-width: 3px;
+      border-radius: 4px;
+      backdrop-filter: blur(4px);
+      transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease,
+        transform 0.2s ease;
+    }
+    .abr-hud.q-good {
+      background: rgba(228, 243, 234, 0.92);
+      border-color: var(--q-good-edge);
+      border-left-color: var(--q-good);
+      color: var(--q-good);
+    }
+    .abr-hud.q-normal {
+      background: rgba(227, 238, 246, 0.92);
+      border-color: var(--q-normal-edge);
+      border-left-color: var(--q-normal);
+      color: var(--q-normal);
+    }
+    .abr-hud.q-degraded {
+      background: rgba(245, 239, 216, 0.94);
+      border-color: var(--q-degraded-edge);
+      border-left-color: var(--q-degraded);
+      color: var(--q-degraded);
+    }
+    .abr-hud.q-bad {
+      background: rgba(246, 235, 226, 0.94);
+      border-color: var(--q-bad-edge);
+      border-left-color: var(--q-bad);
+      color: var(--q-bad);
+    }
+    .abr-hud.q-critical {
+      background: rgba(243, 226, 226, 0.94);
+      border-color: var(--q-critical-edge);
+      border-left-color: var(--q-critical);
+      color: var(--q-critical);
+    }
+    .abr-hud.flash {
+      transform: translateY(-2px);
+      filter: brightness(1.05);
+    }
+
+    /* right: ABR + NETEM — journal full-width below */
+    .side {
+      min-height: 0;
+      background: var(--panel);
+      border: 1px solid var(--line-2);
+      border-radius: var(--radius);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .side-scroll {
+      flex: 1 1 auto;
+      overflow: auto;
+      min-height: 0;
+    }
+    .side section {
+      padding: 10px 12px;
+    }
+    .section-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .section-head h2 {
+      margin: 0;
+      font-family: var(--display);
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+    }
+    .section-head p {
+      margin: 0;
+      flex: 1;
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .help {
+      flex-shrink: 0;
+    }
+    .help-btn {
+      width: 22px;
+      height: 22px;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      background: var(--panel-2);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 11px;
+      cursor: pointer;
+      line-height: 1;
+    }
+    .help-btn:hover, .help.open .help-btn {
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(0, 0, 0, 0.42);
+      backdrop-filter: blur(4px);
+    }
+    .modal {
+      width: min(460px, 100%);
+      max-height: min(82vh, 680px);
+      overflow: auto;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
+    }
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .modal-head h3 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+    .modal-close {
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 4px 8px;
+      cursor: pointer;
+      border-radius: 6px;
+    }
+    .modal-close:hover { color: var(--ink); border-color: var(--accent); }
+    .modal-body { padding: 14px 16px 16px; }
+    .modal-body table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+    .modal-body td {
+      padding: 6px 0;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      vertical-align: top;
+    }
+    .modal-body td:first-child {
+      font-weight: 500;
+      padding-right: 12px;
+      white-space: nowrap;
+    }
+    .modal-body tr.q-good td:first-child { color: var(--q-good); }
+    .modal-body tr.q-normal td:first-child { color: var(--q-normal); }
+    .modal-body tr.q-degraded td:first-child { color: var(--q-degraded); }
+    .modal-body tr.q-bad td:first-child { color: var(--q-bad); }
+    .modal-body tr.q-critical td:first-child { color: var(--q-critical); }
+    .modal-body .note {
+      margin: 12px 0 0;
+      font-size: 12px;
+      line-height: 1.4;
+      color: var(--muted);
+    }
+    .modal-body .note code {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink);
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      padding: 1px 5px;
+      border-radius: 3px;
+      word-break: break-all;
+    }
+    .modal-body pre.diagram {
+      margin: 10px 0 0;
+      padding: 10px 12px;
+      font-family: var(--mono);
+      font-size: 10px;
+      line-height: 1.45;
+      white-space: pre;
+      overflow-x: auto;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      color: var(--ink);
+    }
+    .modal-body h4 {
+      margin: 14px 0 6px;
+      font-family: var(--display);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .modal-body h4:first-child {
+      margin-top: 0;
+    }
+    .help-cli {
+      margin-top: 12px;
+      padding: 10px;
+      background: var(--console-inset);
+      border: 1px solid var(--console-border);
+      border-radius: 6px;
+      color: var(--console-text);
+    }
+    .help-cli .cli-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--console-muted);
+    }
+    .help-cli button {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      border: 1px solid var(--console-border);
+      background: var(--panel);
+      color: var(--ink);
+      cursor: pointer;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+    .help-cli button:hover { border-color: var(--accent); color: var(--accent); }
+    .help-cli code {
+      display: block;
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: var(--console-req);
+    }
+
+    .netem-block {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+    }
+    .netem-block .section-head {
+      margin-bottom: 6px;
+    }
+    .netem-block .section-head h2 {
+      font-size: 13px;
+    }
+    .netem {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .netem.has-active button:not(.on) {
+      opacity: 0.72;
+    }
+    .netem button {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      padding: 4px 8px;
+      min-height: 0;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--ink);
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-align: left;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+    .netem button small {
+      font-weight: 400;
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: 0;
+      text-align: right;
+      white-space: nowrap;
+    }
+    .netem button:hover:not(:disabled):not(.on) {
+      border-color: var(--line-2);
+      background: var(--panel);
+    }
+    .netem button.on {
+      border-color: var(--ink);
+      background: color-mix(in srgb, var(--ink) 88%, var(--panel));
+      color: var(--panel);
+    }
+    .netem button.on small {
+      color: color-mix(in srgb, var(--panel) 75%, transparent);
+    }
+    .netem button:disabled {
+      opacity: 0.45;
+      cursor: wait;
+    }
+    .netem button.clear-preset.on {
+      border-color: var(--ok);
+      background: color-mix(in srgb, var(--ok) 16%, var(--panel));
+      color: var(--ok);
+    }
+    .netem button.clear-preset.on small {
+      color: var(--muted);
+    }
+    .netem-meta {
+      margin-top: 8px;
+      font-family: var(--mono);
+      font-size: 10px;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+    .netem-meta strong {
+      color: var(--ink);
+      font-weight: 600;
+    }
+    .netem-meta.err {
+      color: var(--bad);
+    }
+    .netem-meta .err {
+      color: var(--bad);
+    }
+
+    .abr {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .abr.has-active button:not(.on) {
+      opacity: 0.62;
+      filter: saturate(0.85);
+    }
+    .abr button {
+      position: relative;
+      font-family: var(--mono);
+      font-size: 12px;
+      text-align: left;
+      padding: 8px 56px 8px 14px;
+      border: 1px solid var(--line-2);
+      background: var(--panel);
+      cursor: pointer;
+      color: var(--ink);
+      border-radius: 4px;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease,
+        box-shadow 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
+    }
+    .abr button::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: var(--q-edge, var(--line-2));
+    }
+    .abr button:disabled { opacity: 0.45; cursor: wait; }
+    .abr button small {
+      display: block;
+      margin-top: 2px;
+      font-size: 10px;
+      opacity: 0.8;
+      font-weight: 400;
+    }
+    .abr button.q-good {
+      --q-edge: var(--q-good);
+      color: var(--q-good);
+      background: var(--q-good-bg);
+      border-color: var(--q-good-edge);
+    }
+    .abr button.q-normal {
+      --q-edge: var(--q-normal);
+      color: var(--q-normal);
+      background: var(--q-normal-bg);
+      border-color: var(--q-normal-edge);
+    }
+    .abr button.q-degraded {
+      --q-edge: var(--q-degraded);
+      color: var(--q-degraded);
+      background: var(--q-degraded-bg);
+      border-color: var(--q-degraded-edge);
+    }
+    .abr button.q-bad {
+      --q-edge: var(--q-bad);
+      color: var(--q-bad);
+      background: var(--q-bad-bg);
+      border-color: var(--q-bad-edge);
+    }
+    .abr button.q-critical {
+      --q-edge: var(--q-critical);
+      color: var(--q-critical);
+      background: var(--q-critical-bg);
+      border-color: var(--q-critical-edge);
+    }
+    .abr button:hover:not(.on) {
+      opacity: 1;
+      filter: none;
+      box-shadow: inset 0 0 0 1px rgba(21, 26, 34, 0.08);
+    }
+    .abr button.on {
+      color: #fff;
+      font-weight: 600;
+      opacity: 1;
+      filter: none;
+      transform: translateX(1px);
+      box-shadow: 0 2px 8px rgba(12, 16, 22, 0.16);
+    }
+    .abr button.on small { opacity: 0.9; color: #fff; }
+    .abr button.q-good.on {
+      background: var(--q-good);
+      border-color: var(--q-good);
+      --q-edge: #fff;
+    }
+    .abr button.q-normal.on {
+      background: var(--q-normal);
+      border-color: var(--q-normal);
+      --q-edge: #fff;
+    }
+    .abr button.q-degraded.on {
+      background: var(--q-degraded);
+      border-color: var(--q-degraded);
+      --q-edge: #fff;
+    }
+    .abr button.q-bad.on {
+      background: var(--q-bad);
+      border-color: var(--q-bad);
+      --q-edge: #fff;
+    }
+    .abr button.q-critical.on {
+      background: var(--q-critical);
+      border-color: var(--q-critical);
+      --q-edge: #fff;
+    }
+    .abr button.on::after {
+      content: "ACTIVE";
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      font-weight: 500;
+      opacity: 0.95;
+    }
+
+    .console {
+      max-height: 480px;
+      height: auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      background: var(--console-raised);
+      border: 1px solid var(--console-border);
+      border-radius: var(--radius);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+      overflow: hidden;
+    }
+    .console.is-empty .console-body {
+      flex: 0 0 auto;
+    }
+    .console-bar {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--console-border);
+      background: var(--console-raised);
+    }
+    .console-title {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .console-title strong {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--console-text);
+      font-weight: 500;
+    }
+    .console-title span {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--console-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .console-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .view-switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      padding: 2px;
+      border: 1px solid var(--console-border);
+      background: var(--console-inset);
+      border-radius: 4px;
+    }
+    .view-switch button {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      border: none;
+      background: transparent;
+      color: var(--console-muted);
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 3px;
+    }
+    .view-switch button.on {
+      background: var(--console-raised);
+      color: var(--console-text);
+      box-shadow: inset 0 0 0 1px var(--accent);
+    }
+    .console-bar .clear-btn {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      border: 1px solid var(--console-border);
+      background: var(--console-inset);
+      color: var(--console-muted);
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+    .console-bar .clear-btn:hover {
+      color: var(--console-text);
+      border-color: var(--accent);
+    }
+    /* Единственный scroll-container журнала; карточки растут по контенту. */
+    .console-body {
+      flex: 1 1 auto;
+      min-height: 0;
+      max-height: calc(480px - 44px);
+      overflow-x: hidden;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+      margin: 0;
+      padding: 8px;
+      background: var(--console-inset);
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.45;
+      color: var(--console-text);
+    }
+    .console.is-empty .console-body {
+      max-height: none;
+      overflow: visible;
+      scrollbar-gutter: auto;
+    }
+    .log-entry {
+      margin-bottom: 6px;
+      padding: 6px 10px;
+      background: var(--console-raised);
+      border: 1px solid var(--console-border);
+      border-left: 3px solid var(--console-meta);
+      border-radius: 6px;
+      overflow: visible;
+    }
+    .log-entry:last-child { margin-bottom: 0; }
+    /* Роль кадра — нейтральные оттенки; severity только у имени профиля/level. */
+    .log-entry.request { border-left-color: var(--console-dir-req); }
+    .log-entry.response { border-left-color: var(--console-dir-res); }
+    .log-line {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      min-width: 0;
+      font-size: 11px;
+      line-height: 1.45;
+      white-space: nowrap;
+    }
+    .log-line .time {
+      flex: 0 0 auto;
+      color: var(--console-muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .log-line .type {
+      flex: 0 0 auto;
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-weight: 500;
+      min-width: 4.6rem;
+    }
+    .log-entry.request .type { color: var(--console-dir-req); }
+    .log-entry.response .type { color: var(--console-dir-res); }
+    .log-line .body {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--console-text);
+    }
+    .abr-token {
+      font-weight: 600;
+    }
+    .abr-token.q-good { color: var(--q-good); }
+    .abr-token.q-normal { color: var(--q-normal); }
+    .abr-token.q-degraded { color: var(--q-degraded); }
+    .abr-token.q-bad { color: var(--q-bad); }
+    .abr-token.q-critical { color: var(--q-critical); }
+    .abr-token.q-warn { color: var(--q-normal); }
+    .log-json {
+      margin: 6px 0 0;
+      padding: 8px;
+      background: var(--console-inset);
+      border: 1px solid var(--console-border);
+      border-radius: 4px;
+      font-size: 10px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      color: var(--console-text);
+      overflow: visible;
+      max-height: none;
+    }
+    .console-empty {
+      display: grid;
+      place-items: center;
+      min-height: 0;
+      height: auto;
+      text-align: center;
+      color: var(--console-muted);
+      font-size: 10px;
+      line-height: 1.45;
+      padding: 12px 14px;
+    }
+    .console-empty b {
+      display: block;
+      color: var(--console-text);
+      font-weight: 500;
+      margin-bottom: 2px;
+    }
+
+    .foot {
+      padding: 14px 16px;
+      background: var(--panel);
+      border: 1px solid var(--line-2);
+      border-radius: var(--radius);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+      font-size: 12.5px;
+      line-height: 1.55;
+      color: var(--muted);
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .foot .logo img.mark-img {
+      height: 24px;
+      width: auto;
+    }
+    .foot-copy { min-width: 0; }
+    .foot strong {
+      color: var(--ink);
+      font-weight: 600;
+    }
+    .foot .meta {
+      margin-top: 4px;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+
+    .error-banner {
+      margin: 24px;
+      padding: 12px 14px;
+      border: 1px solid #d0a0a0;
+      border-radius: var(--radius);
+      background: var(--bad-bg);
+      color: var(--bad);
+    }
+
+    @media (max-width: 1100px) {
+      .main { grid-template-columns: minmax(0, 1fr) 230px; }
+    }
+    @media (max-width: 860px) {
+      .app {
+        grid-template-rows: auto auto auto auto;
+      }
+      .main {
+        height: auto;
+        min-height: 0;
+        grid-template-columns: 1fr;
+      }
+      .side { order: -1; max-height: none; }
+      .mosaic { height: auto; grid-template-rows: auto auto; }
+      .frame { aspect-ratio: 16 / 10; flex: none; }
+      .abr { flex-direction: row; flex-wrap: wrap; }
+      .abr button { flex: 1 1 30%; }
+      .console { max-height: 400px; }
+      .console-body { max-height: calc(400px - 44px); }
+    }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.3.1",
+      "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+      "htm": "https://esm.sh/htm@3.1.1"
+    }
+  }
+  </script>
+</head>
+<body class="skin-day tone-light">
+  <div id="root"></div>
+  <script type="module">
+    import React, { useEffect, useMemo, useState } from "react";
+    import { createRoot } from "react-dom/client";
+    import htm from "htm";
+
+    const html = htm.bind(React.createElement);
+    // One in-flight JPEG per tile; next URL only after load/error (no request pileup).
+    const FRAME_MS = 120;
+    const STATUS_MS = 500;
+    const SIGNAL_STALE_MS = 2000;
+    const LOG_MAX = 40;
+
+    const LOG_VIEW_KEY = "rtsp-lab-log-view";
+    const LOG_VIEWS = [
+      { id: "structured", label: "структура" },
+      { id: "raw", label: "сырой" },
+    ];
+    const HAI_EGGS = [
+      {
+        title: "ХАИ online",
+        sub: "Telemetry uplink nominal · KhAI spirit checksum OK",
+      },
+      {
+        title: "Позывной: KHAI",
+        sub: "Control WS на связи · ABR в эшелоне",
+      },
+      {
+        title: "Су-7Б на месте",
+        sub: "Чекер на посту · полоса RTSP свободна",
+      },
+      {
+        title: "Checksum: KHAI",
+        sub: "Наши есть везде · выпускник ХАИ Кононенко · 1000+ суток на орбите",
+      },
+    ];
+
+    function LogoMark({ dark = false, title = "RTSP Lab" }) {
+      return html`
+        <span className="logo" title=${title}>
+          <img
+            className="mark-img"
+            src=${dark ? "/rtsp-lab-logo-dark.png" : "/rtsp-lab-logo.png"}
+            width="154"
+            height="88"
+            alt=""
+            draggable=${false}
+          />
+        </span>
+      `;
+    }
+
+    const ABR = [
+      { level: "good", fps: 30, bitrate_kbps: 1100, hint: "30 fps · 1100 kbps" },
+      { level: "normal", fps: 30, bitrate_kbps: 700, hint: "30 fps · 700 kbps" },
+      { level: "degraded", fps: 24, bitrate_kbps: 500, hint: "24 fps · 500 kbps" },
+      { level: "bad", fps: 18, bitrate_kbps: 350, hint: "18 fps · 350 kbps" },
+      { level: "critical", fps: 12, bitrate_kbps: 250, hint: "12 fps · 250 kbps" },
+    ];
+    const NETEM_FALLBACK = [
+      { id: "clear", hint: "сброс qdisc" },
+      { id: "lte-1m", hint: "100ms ±30 · 3% · 1 Mbit" },
+      { id: "lte-1p5m", hint: "90ms ±25 · 2.5% · 1.5 Mbit" },
+      { id: "lte-bad", hint: "120ms ±40 · 2% · 2 Mbit" },
+      { id: "sat", hint: "550ms ±50 · 1% · 3 Mbit" },
+      { id: "lossy", hint: "60ms ±20 · 8% · 4 Mbit" },
+      { id: "lte-ok", hint: "40ms ±10 · 0.1% · 8 Mbit" },
+    ];
+
+    function pretty(obj) {
+      try {
+        return JSON.stringify(obj, null, 2);
+      } catch (_) {
+        return String(obj);
+      }
+    }
+
+    function loadLogView() {
+      try {
+        const v = localStorage.getItem(LOG_VIEW_KEY);
+        if (LOG_VIEWS.some((x) => x.id === v)) return v;
+      } catch (_) {}
+      return "structured";
+    }
+
+    function formatStamp(date = new Date()) {
+      try {
+        return date.toLocaleTimeString(undefined, {
+          hour: "numeric",
+          minute: "2-digit",
+          second: "2-digit",
+          fractionalSecondDigits: 3,
+        });
+      } catch (_) {
+        const pad = (n, w = 2) => String(n).padStart(w, "0");
+        let h = date.getHours();
+        const ampm = h >= 12 ? "PM" : "AM";
+        h = h % 12 || 12;
+        return `${h}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(
+          date.getMilliseconds(),
+          3
+        )} ${ampm}`;
+      }
+    }
+
+    /** Плоские path → value для однострочного structured вида. */
+    function flattenPayload(value, prefix = "") {
+      if (value === null || value === undefined) {
+        return [{ path: prefix || "(root)", value }];
+      }
+      if (typeof value !== "object") {
+        return [{ path: prefix || "(root)", value }];
+      }
+      if (Array.isArray(value)) {
+        return [{ path: prefix || "(root)", value }];
+      }
+      const keys = Object.keys(value);
+      if (keys.length === 0) return [{ path: prefix || "(root)", value: {} }];
+      const rows = [];
+      for (const key of keys) {
+        const path = prefix ? `${prefix}.${key}` : key;
+        const child = value[key];
+        if (
+          child !== null &&
+          typeof child === "object" &&
+          !Array.isArray(child) &&
+          Object.keys(child).length > 0
+        ) {
+          rows.push(...flattenPayload(child, path));
+        } else {
+          rows.push({ path, value: child });
+        }
+      }
+      return rows;
+    }
+
+    function formatScalar(value) {
+      if (value === null) return "null";
+      if (value === undefined) return "undefined";
+      if (typeof value === "boolean" || typeof value === "number") {
+        return String(value);
+      }
+      if (typeof value === "string") {
+        return /\s/.test(value) ? JSON.stringify(value) : value;
+      }
+      try {
+        return JSON.stringify(value);
+      } catch (_) {
+        return String(value);
+      }
+    }
+
+    function abrTokenClass(name) {
+      const key = String(name || "").toLowerCase();
+      if (key === "warn") return "abr-token q-warn";
+      if (ABR.some((a) => a.level === key)) return `abr-token q-${key}`;
+      return null;
+    }
+
+    function isAbrFieldPath(path) {
+      return /(^|\.)(level|profile)$/.test(path);
+    }
+
+    /** Structured: одна строка; severity-цвет только у значения level/profile. */
+    function structuredLineNodes(payload) {
+      if (payload == null) return "";
+      const rows = flattenPayload(payload);
+      const nodes = [];
+      rows.forEach((row, i) => {
+        if (i) nodes.push("  ");
+        const val = formatScalar(row.value);
+        const tokenCls =
+          isAbrFieldPath(row.path) && typeof row.value === "string"
+            ? abrTokenClass(row.value)
+            : null;
+        nodes.push(`${row.path}=`);
+        if (tokenCls) {
+          nodes.push(html`<span className=${tokenCls}>${val}</span>`);
+        } else {
+          nodes.push(val);
+        }
+      });
+      return nodes;
+    }
+
+    function structuredLineTitle(payload) {
+      if (payload == null) return "";
+      return flattenPayload(payload)
+        .map((row) => `${row.path}=${formatScalar(row.value)}`)
+        .join("  ");
+    }
+
+    /** Raw JSON: подсветить только значения "profile"/"level". */
+    function colorizeJsonAbr(text) {
+      const re =
+        /("(?:profile|level)"\s*:\s*")(good|normal|degraded|bad|critical|warn)(")/gi;
+      const nodes = [];
+      let last = 0;
+      let m;
+      while ((m = re.exec(text)) !== null) {
+        if (m.index > last) nodes.push(text.slice(last, m.index));
+        nodes.push(m[1]);
+        nodes.push(
+          html`<span className=${abrTokenClass(m[2])}>${m[2]}</span>`
+        );
+        nodes.push(m[3]);
+        last = m.index + m[0].length;
+      }
+      if (last < text.length) nodes.push(text.slice(last));
+      return nodes.length ? nodes : text;
+    }
+
+    function LogEntry({ entry, view }) {
+      const cls = `log-entry ${entry.type}`;
+      const title =
+        view === "structured" ? structuredLineTitle(entry.payload) : undefined;
+      return html`
+        <article className=${cls}>
+          <div className="log-line" title=${title}>
+            <span className="time">${entry.stamp}</span>
+            <span className="type">${entry.type}</span>
+            ${view === "structured"
+              ? html`<span className="body"
+                  >${structuredLineNodes(entry.payload)}</span
+                >`
+              : null}
+          </div>
+          ${view === "raw" && entry.payload != null
+            ? html`<pre className="log-json"
+                >${colorizeJsonAbr(pretty(entry.payload))}</pre
+              >`
+            : null}
+        </article>
+      `;
+    }
+
+    const SKINS = [
+      { id: "day", label: "Day", tone: "light" },
+      { id: "mist", label: "Mist", tone: "light" },
+      { id: "zinc", label: "Zinc", tone: "light" },
+      { id: "sea", label: "Sea", tone: "light" },
+      { id: "night", label: "Night", tone: "dark" },
+      { id: "carbon", label: "Carbon", tone: "dark" },
+    ];
+    const THEME_KEY = "rtsp-lab-skin";
+
+    function qosClass(level) {
+      const key = String(level || "").toLowerCase();
+      if (ABR.some((a) => a.level === key)) return `q-${key}`;
+      return "";
+    }
+    function loadSkin() {
+      try {
+        const v = localStorage.getItem(THEME_KEY);
+        if (v === "slate") return "day";
+        if (SKINS.some((s) => s.id === v)) return v;
+      } catch (_) {}
+      return "day";
+    }
+    function skinMeta(id) {
+      return SKINS.find((s) => s.id === id) || SKINS[0];
+    }
+
+    function signalOf(s) {
+      if (!s) return "no_signal";
+      return s.signal || (s.live ? "live" : s.has_frame ? "stale" : "no_signal");
+    }
+    function labelOf(sig) {
+      if (sig === "live") return "LIVE";
+      if (sig === "stale") return "STALE";
+      return "NO SIGNAL";
+    }
+    function fmtAge(ms) {
+      if (ms == null) return "—";
+      if (ms < 1000) return `${ms} ms`;
+      return `${(ms / 1000).toFixed(1)} s`;
+    }
+    function fmtRes(s) {
+      if (!s?.width || !s?.height) return "—";
+      return `${s.width}×${s.height}`;
+    }
+
+    function CameraTile({ cam, abr, abrFlash, signalStaleMs }) {
+      const jpegPath = cam.jpeg;
+      const [src, setSrc] = useState(`${jpegPath}?t=0`);
+      const [ready, setReady] = useState(false);
+      const timerRef = React.useRef(0);
+      const liveRef = React.useRef(true);
+      const st = cam.status || {};
+      const sig = signalOf(st);
+      const staleSec = (signalStaleMs ?? SIGNAL_STALE_MS) / 1000;
+      const meta = st.error
+        ? `ERR · ${st.error}`
+        : `${fmtRes(st)} · ${fmtAge(st.age_ms)}`;
+
+      useEffect(() => {
+        liveRef.current = true;
+        setSrc(`${jpegPath}?t=0`);
+        return () => {
+          liveRef.current = false;
+          window.clearTimeout(timerRef.current);
+        };
+      }, [jpegPath]);
+
+      function scheduleNext() {
+        window.clearTimeout(timerRef.current);
+        timerRef.current = window.setTimeout(() => {
+          if (!liveRef.current) return;
+          setSrc(`${jpegPath}?t=${Date.now()}`);
+        }, FRAME_MS);
+      }
+
+      return html`
+        <article className="tile">
+          <div className="tile-bar">
+            <div className="tile-id">
+              <span className=${`dot ${sig}`}></span>
+              <span>${cam.label}</span>
+              <span className="port">:${cam.port}</span>
+              <span className=${`tile-meta${st.error ? " bad" : ""}`} title=${meta}
+                >${meta}</span
+              >
+            </div>
+            <span
+              className=${`pill ${sig}`}
+              title=${
+                sig === "no_signal"
+                  ? "NO SIGNAL: нет кадров с RTSP (не «камера выключена» в UI)"
+                  : sig === "stale"
+                  ? `STALE: есть кадр, но age ≥ ${staleSec} s (порог LIVE)`
+                  : `LIVE: последний кадр < ${staleSec} s назад`
+              }
+              >${labelOf(sig)}</span
+            >
+          </div>
+          <div className="frame">
+            ${abr &&
+              html`<div
+                className=${`abr-hud ${qosClass(abr.profile)}${abrFlash ? " flash" : ""}`}
+              >
+                ${abr.profile} · ${abr.fps}fps · ${abr.bitrate_kbps}k
+              </div>`}
+            ${!ready && html`<div className="wait">acquiring…</div>`}
+            <img
+              src=${src}
+              alt=${cam.label}
+              onLoad=${() => {
+                setReady(true);
+                scheduleNext();
+              }}
+              onError=${() => scheduleNext()}
+            />
+          </div>
+        </article>
+      `;
+    }
+
+    const DEFAULT_ABR = ABR.find((a) => a.level === "good") || ABR[0];
+
+    function App() {
+      const [data, setData] = useState(null);
+      const [error, setError] = useState(null);
+      const [busy, setBusy] = useState(false);
+      const [lastLevel, setLastLevel] = useState(DEFAULT_ABR.level);
+      const [lastApplied, setLastApplied] = useState({
+        profile: DEFAULT_ABR.level,
+        fps: DEFAULT_ABR.fps,
+        bitrate_kbps: DEFAULT_ABR.bitrate_kbps,
+      });
+      const [abrFlash, setAbrFlash] = useState(false);
+      const [netemBusy, setNetemBusy] = useState(false);
+      const [netemPreset, setNetemPreset] = useState("clear");
+      const [netemError, setNetemError] = useState(null);
+      const [logEntries, setLogEntries] = useState([]);
+      const [logView, setLogView] = useState(loadLogView);
+      const [skin, setSkin] = useState(loadSkin);
+      const [helpOpen, setHelpOpen] = useState(false);
+      const [netemHelpOpen, setNetemHelpOpen] = useState(false);
+      const [settingsOpen, setSettingsOpen] = useState(false);
+      const [cliCopied, setCliCopied] = useState(false);
+      const [easterOpen, setEasterOpen] = useState(false);
+      const [easterEgg, setEasterEgg] = useState(HAI_EGGS[0]);
+      const haiClicks = React.useRef(0);
+      const haiTimer = React.useRef(null);
+      const haiEggIdx = React.useRef(0);
+      const busyRef = React.useRef(false);
+      const lastProfileRef = React.useRef(DEFAULT_ABR.level);
+      const consoleBodyRef = React.useRef(null);
+
+      function pushEntry(entry) {
+        const stamp = formatStamp();
+        const body = consoleBodyRef.current;
+        const stickTop = !body || body.scrollTop < 48;
+        setLogEntries((prev) =>
+          [{ ...entry, stamp, id: `${Date.now()}-${Math.random()}` }, ...prev].slice(
+            0,
+            LOG_MAX
+          )
+        );
+        if (stickTop) {
+          requestAnimationFrame(() => {
+            if (consoleBodyRef.current) consoleBodyRef.current.scrollTop = 0;
+          });
+        }
+      }
+
+      function tapHai() {
+        haiClicks.current += 1;
+        if (haiTimer.current) clearTimeout(haiTimer.current);
+        haiTimer.current = setTimeout(() => {
+          haiClicks.current = 0;
+        }, 1400);
+        if (haiClicks.current < 3) return;
+        haiClicks.current = 0;
+        const egg = HAI_EGGS[haiEggIdx.current % HAI_EGGS.length];
+        haiEggIdx.current += 1;
+        setEasterEgg(egg);
+        setEasterOpen(true);
+        setTimeout(() => setEasterOpen(false), 4500);
+      }
+
+      function chooseSkin(id) {
+        setSkin(id);
+        try {
+          localStorage.setItem(THEME_KEY, id);
+        } catch (_) {}
+      }
+
+      function chooseLogView(id) {
+        setLogView(id);
+        try {
+          localStorage.setItem(LOG_VIEW_KEY, id);
+        } catch (_) {}
+      }
+
+      async function sendAbr(level) {
+        const item = ABR.find((a) => a.level === level);
+        // Ровно тот JSON, что preview шлёт на control WS драйвера.
+        const wireRequest = {
+          event: "link-quality",
+          payload: { level, force: true },
+        };
+        if (item) {
+          setLastLevel(level);
+          setLastApplied({
+            profile: level,
+            fps: item.fps,
+            bitrate_kbps: item.bitrate_kbps,
+          });
+          setAbrFlash(true);
+          setTimeout(() => setAbrFlash(false), 280);
+        }
+        setBusy(true);
+        busyRef.current = true;
+        pushEntry({
+          type: "request",
+          payload: wireRequest,
+        });
+        try {
+          const res = await fetch("/api/link-quality", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ level }),
+          });
+          const json = await res.json();
+          if (json.ok) {
+            setLastLevel(level);
+            lastProfileRef.current = json.profile || level;
+            if (json.profile && json.fps != null) {
+              setLastApplied({
+                profile: json.profile,
+                fps: json.fps,
+                bitrate_kbps: json.bitrate_kbps,
+              });
+            }
+            pushEntry({
+              type: "response",
+              payload: json,
+            });
+          } else {
+            pushEntry({
+              type: "response",
+              payload: json,
+            });
+          }
+        } catch (err) {
+          pushEntry({
+            type: "response",
+            payload: { ok: false, error: String(err.message || err) },
+          });
+        } finally {
+          setBusy(false);
+          busyRef.current = false;
+        }
+      }
+
+      async function sendNetem(preset) {
+        const wireRequest = { event: "netem", payload: { preset } };
+        setNetemBusy(true);
+        setNetemError(null);
+        pushEntry({ type: "request", payload: wireRequest });
+        try {
+          const res = await fetch("/api/netem", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ preset }),
+          });
+          const json = await res.json();
+          pushEntry({ type: "response", payload: { event: "netem", ...json } });
+          if (json.ok) {
+            setNetemPreset(json.applied || json.preset || preset);
+            setNetemError(null);
+          } else {
+            setNetemError(json.error || "netem failed");
+          }
+        } catch (err) {
+          const msg = String(err.message || err);
+          setNetemError(msg);
+          pushEntry({
+            type: "response",
+            payload: { event: "netem", ok: false, error: msg },
+          });
+        } finally {
+          setNetemBusy(false);
+        }
+      }
+
+      useEffect(() => {
+        let cancelled = false;
+        async function pull() {
+          try {
+            const res = await fetch("/api/cameras", { cache: "no-store" });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const json = await res.json();
+            if (!cancelled) {
+              setData(json);
+              setError(null);
+              if (json.netem?.preset) setNetemPreset(json.netem.preset);
+              const abr = json.abr;
+              if (abr?.profile && !busyRef.current) {
+                const prev = lastProfileRef.current;
+                if (
+                  abr.source === "link-quality" &&
+                  abr.profile !== prev
+                ) {
+                  pushEntry({
+                    type: "response",
+                    payload: {
+                      ok: true,
+                      profile: abr.profile,
+                      fps: abr.fps,
+                      bitrate_kbps: abr.bitrate_kbps,
+                    },
+                  });
+                }
+                lastProfileRef.current = abr.profile;
+                setLastLevel(abr.level || abr.profile);
+                setLastApplied({
+                  profile: abr.profile,
+                  fps: abr.fps,
+                  bitrate_kbps: abr.bitrate_kbps,
+                });
+              }
+            }
+          } catch (err) {
+            if (!cancelled) setError(String(err.message || err));
+          }
+        }
+        pull();
+        const id = setInterval(pull, STATUS_MS);
+        return () => {
+          cancelled = true;
+          clearInterval(id);
+        };
+      }, []);
+
+      useEffect(() => {
+        const cls = [
+          ...SKINS.map((s) => `skin-${s.id}`),
+          "tone-light",
+          "tone-dark",
+        ];
+        document.body.classList.remove(...cls);
+        const meta = skinMeta(skin);
+        document.body.classList.add(`skin-${skin}`, `tone-${meta.tone}`);
+        return () => document.body.classList.remove(...cls);
+      }, [skin]);
+
+      useEffect(() => {
+        if (!helpOpen && !netemHelpOpen && !settingsOpen) return;
+        function onKey(e) {
+          if (e.key === "Escape") {
+            setHelpOpen(false);
+            setNetemHelpOpen(false);
+            setSettingsOpen(false);
+          }
+        }
+        document.addEventListener("keydown", onKey);
+        return () => document.removeEventListener("keydown", onKey);
+      }, [helpOpen, netemHelpOpen, settingsOpen]);
+
+      useEffect(() => {
+        if (!settingsOpen) return;
+        function onDoc(e) {
+          const root = e.target.closest?.(".top-right");
+          if (!root) setSettingsOpen(false);
+        }
+        document.addEventListener("mousedown", onDoc);
+        return () => document.removeEventListener("mousedown", onDoc);
+      }, [settingsOpen]);
+
+      const cameras = data?.cameras || [];
+      const live = data?.live_count ?? 0;
+      const netem = data?.netem;
+      const logoDark = skinMeta(skin).tone === "dark";
+      const healthClass =
+        cameras.length > 0 && live === cameras.length
+          ? "ok"
+          : live > 0
+          ? "warn"
+          : "bad";
+
+      const signalStaleMs = data?.signal_stale_ms ?? SIGNAL_STALE_MS;
+      const signalStaleSec = signalStaleMs / 1000;
+
+      const resSummary = useMemo(() => {
+        const vals = cameras
+          .map((c) => fmtRes(c.status))
+          .filter((v) => v !== "—");
+        if (!vals.length) return "—";
+        if (vals.every((v) => v === vals[0])) return vals[0];
+        return "mixed";
+      }, [cameras]);
+
+      const uplinkCurrent = useMemo(() => {
+        const kbps = lastApplied?.bitrate_kbps;
+        if (!kbps || cameras.length <= 0) return null;
+        return {
+          kbps: cameras.length * kbps,
+          cams: cameras.length,
+          per: kbps,
+          profile: lastApplied.profile,
+        };
+      }, [cameras.length, lastApplied]);
+
+      const uplinkRequired = useMemo(() => {
+        const per = lastApplied?.bitrate_kbps;
+        if (netem?.active && netem?.rate_kbps != null) {
+          const kbps = Number(netem.rate_kbps);
+          if (Number.isFinite(kbps) && kbps > 0) {
+            return {
+              kbps,
+              source: "netem",
+              preset: netem.preset || null,
+            };
+          }
+        }
+        // Нет netem-лимита: требуемый = полный спрос текущего ABR на все камеры.
+        if (!per || cameras.length <= 0) return null;
+        return {
+          kbps: cameras.length * per,
+          source: "abr",
+          cams: cameras.length,
+          per,
+          profile: lastApplied.profile,
+        };
+      }, [
+        netem?.active,
+        netem?.rate_kbps,
+        netem?.preset,
+        cameras.length,
+        lastApplied,
+      ]);
+
+      const uplinkOver =
+        uplinkCurrent != null &&
+        uplinkRequired != null &&
+        uplinkCurrent.kbps > uplinkRequired.kbps;
+
+      const controlWs = data?.control_ws || "ws://127.0.0.1:8591";
+      const controlHint = controlWs.replace(/^ws:\/\//, "");
+      const abrLevel = lastLevel || "normal";
+      const cliExample = `curl -sS -X POST '${window.location.origin}/api/link-quality' \\\n  -H 'Content-Type: application/json' \\\n  -d '{"level":"${abrLevel}"}'`;
+
+      async function copyCli() {
+        try {
+          await navigator.clipboard.writeText(
+            `curl -sS -X POST '${window.location.origin}/api/link-quality' -H 'Content-Type: application/json' -d '{"level":"${abrLevel}"}'`
+          );
+          setCliCopied(true);
+          setTimeout(() => setCliCopied(false), 1200);
+        } catch (_) {}
+      }
+
+      if (error && !data) {
+        return html`<div className="error-banner">API: ${error}</div>`;
+      }
+      if (!data) {
+        return html`<div className="app">
+          <div className="top">
+            <div className="brand">
+              <${LogoMark} dark=${logoDark} />
+              <div className="brand-text">
+                <div className="brand-row">
+                  <h1>RTSP Lab</h1>
+                  <span className="lab-badge">Lab</span>
+                </div>
+                <span className="tag">loading…</span>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      return html`
+        <div className="app">
+          <header className="top">
+            <div className="top-left">
+              <div className="brand">
+                <${LogoMark} dark=${logoDark} />
+                <div className="brand-text">
+                  <div className="brand-row">
+                    <h1>RTSP Lab</h1>
+                    <span
+                      className="lab-badge hot"
+                      title="Lab checker · 3× click"
+                      onClick=${tapHai}
+                    >Lab</span>
+                  </div>
+                  <span className="tag">capture-pipeline checker</span>
+                </div>
+              </div>
+              <div className="meters">
+                <div
+                  className=${`meter ${healthClass}`}
+                  title=${`LIVE: кадр < ${signalStaleSec} s · STALE: age ≥ ${signalStaleSec} s · NO SIGNAL: кадров нет`}
+                >
+                  <em>signal</em>${live}/${cameras.length} live
+                </div>
+                <div className="meter" title="Размер JPEG в lab-превью (ffmpeg scale), не encode RTSP">
+                  <em>preview</em>${resSummary}
+                </div>
+                ${uplinkRequired
+                  ? html`<div
+                      className="meter uplink"
+                      title=${uplinkRequired.source === "netem"
+                        ? `Требуемая полоса по ограничению netem (${uplinkRequired.preset}): ${uplinkRequired.kbps} kbps`
+                        : `Ограничений netem нет — расчётный спрос ABR «${uplinkRequired.profile}»: ${uplinkRequired.cams}×${uplinkRequired.per} = ${uplinkRequired.kbps} kbps`}
+                    >
+                      <em>Требуемый uplink</em>
+                      <span className="val">${uplinkRequired.kbps} kbps</span>
+                    </div>`
+                  : html`<div
+                      className="meter uplink empty"
+                      title="Нет данных для требуемого uplink"
+                    >
+                      <em>Требуемый uplink</em>—
+                    </div>`}
+                ${uplinkCurrent
+                  ? html`<div
+                      className=${`meter uplink${uplinkOver ? " over" : ""}`}
+                      title=${`Текущий расчётный uplink: ${uplinkCurrent.cams}×${uplinkCurrent.per} kbps (${uplinkCurrent.profile}) = ${uplinkCurrent.kbps} kbps — все камеры, независимо от LIVE/STALE`}
+                    >
+                      <em>Текущий расчетный uplink</em>
+                      <span className="val">${uplinkCurrent.kbps} kbps</span>
+                    </div>`
+                  : html`<div
+                      className="meter uplink empty"
+                      title="Нет данных ABR"
+                    >
+                      <em>Текущий расчетный uplink</em>—
+                    </div>`}
+              </div>
+            </div>
+            <div className="top-right">
+              <button
+                type="button"
+                className=${`settings-btn${settingsOpen ? " open" : ""}`}
+                aria-label="Настройки"
+                aria-expanded=${settingsOpen}
+                title="Тема"
+                onClick=${() => setSettingsOpen((v) => !v)}
+              >
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                  />
+                  <path
+                    d="M19.4 13a7.8 7.8 0 0 0 .1-2l2-1.2-2-3.4-2.3.6a7.6 7.6 0 0 0-1.7-1L15 3h-6l-.5 2.9a7.6 7.6 0 0 0-1.7 1L4.5 6.4l-2 3.4 2 1.2a7.8 7.8 0 0 0 0 2l-2 1.2 2 3.4 2.3-.6a7.6 7.6 0 0 0 1.7 1L9 21h6l.5-2.9a7.6 7.6 0 0 0 1.7-1l2.3.6 2-3.4-2-1.2Z"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </button>
+              ${settingsOpen &&
+                html`<div className="settings-pop" role="dialog" aria-label="Тема">
+                  <div className="label">Тема</div>
+                  <div className="theme-switch" role="group" aria-label="Тема">
+                    ${SKINS.map(
+                      (s) =>
+                        html`<button
+                          key=${s.id}
+                          type="button"
+                          className=${skin === s.id ? "on" : ""}
+                          onClick=${() => {
+                            chooseSkin(s.id);
+                            setSettingsOpen(false);
+                          }}
+                        >
+                          ${s.label}
+                        </button>`
+                    )}
+                  </div>
+                </div>`}
+            </div>
+          </header>
+
+          <div className="main">
+            <section className="wall" aria-label="camera mosaic">
+              <div className="mosaic">
+                ${cameras.map(
+                  (cam) =>
+                    html`<${CameraTile}
+                      key=${cam.id}
+                      cam=${cam}
+                      abr=${lastApplied}
+                      abrFlash=${abrFlash}
+                      signalStaleMs=${signalStaleMs}
+                    />`
+                )}
+              </div>
+            </section>
+
+            <aside className="side" aria-label="instruments">
+              <div className="side-scroll">
+                <section>
+                  <div className="section-head">
+                    <h2>ABR</h2>
+                    <p>Профили качества канала</p>
+                    <div className=${`help${helpOpen ? " open" : ""}`}>
+                      <button
+                        type="button"
+                        className="help-btn"
+                        aria-label="Справка по профилям"
+                        aria-expanded=${helpOpen}
+                        onClick=${() => setHelpOpen(true)}
+                      >
+                        ?
+                      </button>
+                    </div>
+                  </div>
+                  <div className=${`abr${lastLevel ? " has-active" : ""}`}>
+                    ${ABR.map(
+                      (item) => html`<button
+                        key=${item.level}
+                        className=${`${qosClass(item.level)}${lastLevel === item.level ? " on" : ""}`}
+                        disabled=${busy}
+                        onClick=${() => sendAbr(item.level)}
+                      >
+                        ${item.level}
+                        <small>${item.hint}</small>
+                      </button>`
+                    )}
+                  </div>
+                  <div className="netem-block">
+                    <div className="section-head">
+                      <h2>NETEM</h2>
+                      <p>UDP uplink · не ABR</p>
+                      <div className=${`help${netemHelpOpen ? " open" : ""}`}>
+                        <button
+                          type="button"
+                          className="help-btn"
+                          aria-label="Справка по NETEM"
+                          aria-expanded=${netemHelpOpen}
+                          onClick=${() => setNetemHelpOpen(true)}
+                        >
+                          ?
+                        </button>
+                      </div>
+                    </div>
+                    <div className=${`netem${netemPreset ? " has-active" : ""}`}>
+                      ${(netem?.presets || NETEM_FALLBACK).map(
+                        (item) => html`<button
+                          key=${item.id}
+                          type="button"
+                          className=${`${item.id === "clear" ? "clear-preset" : ""}${
+                            netemPreset === item.id ? " on" : ""
+                          }`}
+                          disabled=${netemBusy || !(netem?.available ?? true)}
+                          title=${item.hint}
+                          onClick=${() => sendNetem(item.id)}
+                        >
+                          ${item.id}
+                          <small>${item.hint}</small>
+                        </button>`
+                      )}
+                    </div>
+                    <div
+                      className=${`netem-meta${netemError ? " err" : ""}`}
+                      title=${netem?.hint || "UDP egress only; TCP (SSH/HTTP/control) not shaped. ABR — кнопки выше."}
+                    >
+                      ${netemError
+                        ? netemError
+                        : html`iface <strong>${netem?.iface || "—"}</strong>
+                            ·
+                            <strong>${netem?.match || "udp"}</strong>
+                            ${netem?.match === "udp-sports"
+                              ? html` · ports
+                                  <strong>${(netem?.ports || []).join(",") || "—"}</strong>`
+                              : html` · <span>all UDP</span>`}
+                            ·
+                            <strong>${netem?.active ? netemPreset : "clear"}</strong>
+                            ${netem && netem.elevated === false
+                              ? html` · <span className="err">no CAP_NET_ADMIN — make preview-emulate-sudo</span>`
+                              : ""}`}
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </aside>
+          </div>
+
+          <section
+            className=${`console${logEntries.length === 0 ? " is-empty" : ""}`}
+            aria-label="Журнал ABR"
+          >
+            <div className="console-bar">
+              <div className="console-title">
+                <strong>Журнал ABR</strong>
+                <span>control WS · ${controlHint}</span>
+              </div>
+              <div className="console-actions">
+                <div
+                  className="view-switch"
+                  role="group"
+                  aria-label="Вид журнала"
+                  title="Структура: поля; сырой: JSON целиком"
+                >
+                  ${LOG_VIEWS.map(
+                    (v) => html`<button
+                      key=${v.id}
+                      type="button"
+                      className=${logView === v.id ? "on" : ""}
+                      aria-pressed=${logView === v.id}
+                      onClick=${() => chooseLogView(v.id)}
+                    >
+                      ${v.label}
+                    </button>`
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="clear-btn"
+                  onClick=${() => setLogEntries([])}
+                >
+                  очистить
+                </button>
+              </div>
+            </div>
+            <div className="console-body" ref=${consoleBodyRef}>
+              ${logEntries.length === 0
+                ? html`<div className="console-empty">
+                    <b>Журнал пуст</b>
+                    request / response — нейтральные роли; цвет severity
+                    только у имени профиля (level / profile). Совпадение
+                    цветов request↔response = желаемое состояние.
+                  </div>`
+                : logEntries.map(
+                    (entry) =>
+                      html`<${LogEntry}
+                        key=${entry.id}
+                        entry=${entry}
+                        view=${logView}
+                      />`
+                  )}
+            </div>
+          </section>
+
+          <footer className="foot">
+            <span onClick=${tapHai} style=${{ cursor: "pointer" }}>
+              <${LogoMark} dark=${logoDark} />
+            </span>
+            <div className="foot-copy">
+              <div>
+                <strong>RTSP Lab</strong> — checker в составе
+                <strong> capture-pipeline</strong>: проверка GStreamer-пайплайна,
+                поднятых RTSP-потоков и ABR (link-quality) без продакшен-UI.
+              </div>
+              <div className="meta">encode path · control WS · lab netem · teleoperation MVP</div>
+            </div>
+          </footer>
+
+          <div
+            className=${`easter-toast${easterOpen ? " show" : ""}`}
+            role="status"
+            aria-live="polite"
+          >
+            <strong>${easterEgg.title}</strong>
+            <span>${easterEgg.sub}</span>
+          </div>
+
+          ${helpOpen &&
+            html`<div
+              className="modal-backdrop"
+              role="presentation"
+              onClick=${(e) => {
+                if (e.target === e.currentTarget) setHelpOpen(false);
+              }}
+            >
+              <div className="modal" role="dialog" aria-modal="true" aria-label="Профили качества">
+                <div className="modal-head">
+                  <h3>Профили качества</h3>
+                  <button type="button" className="modal-close" onClick=${() => setHelpOpen(false)}>
+                    закрыть
+                  </button>
+                </div>
+                <div className="modal-body">
+                  <table>
+                    <tbody>
+                      ${ABR.map(
+                        (item) => html`<tr key=${item.level} className=${qosClass(item.level)}>
+                          <td>${item.level}</td>
+                          <td>${item.hint}</td>
+                        </tr>`
+                      )}
+                    </tbody>
+                  </table>
+                  <p className="note">
+                    Драйвер принимает link-quality по WebSocket (${controlHint}).
+                    Curl бьёт в lab-прокси — тот же ABR. Бейдж на кадре сразу,
+                    burn-in overlay — по RTSP.
+                  </p>
+                  <div className="help-cli">
+                    <div className="cli-head">
+                      <span>curl check</span>
+                      <button type="button" onClick=${copyCli}>
+                        ${cliCopied ? "copied" : "copy"}
+                      </button>
+                    </div>
+                    <code>${cliExample}</code>
+                  </div>
+                </div>
+              </div>
+            </div>`}
+
+          ${netemHelpOpen &&
+            html`<div
+              className="modal-backdrop"
+              role="presentation"
+              onClick=${(e) => {
+                if (e.target === e.currentTarget) setNetemHelpOpen(false);
+              }}
+            >
+              <div className="modal" role="dialog" aria-modal="true" aria-label="NETEM lab tc">
+                <div className="modal-head">
+                  <h3>NETEM — lab tc</h3>
+                  <button
+                    type="button"
+                    className="modal-close"
+                    onClick=${() => setNetemHelpOpen(false)}
+                  >
+                    закрыть
+                  </button>
+                </div>
+                <div className="modal-body">
+                  <h4>1. Что это и зачем</h4>
+                  <p className="note">
+                    <strong>NETEM</strong> — lab-only инструмент на
+                    <code>tc/netem</code>. Им на вычислителе имитируют плохой
+                    <strong>исходящий канал</strong> (delay, loss, rate limit),
+                    чтобы проверить, как ведут себя UDP-потоки (RTP/WebRTC-like)
+                    и ABR. Это <strong>не</strong> часть control WS драйвера и
+                    <strong>не</strong> меняет ABR-профили само по себе.
+                  </p>
+                  <h4>2. Как работает</h4>
+                  <p className="note">
+                    <strong>Egress</strong> («и́-грес») — трафик
+                    <strong>от устройства наружу</strong> через выбранный
+                    сетевой интерфейс.<br />
+                    NETEM вешает правила на <strong>UDP egress</strong> выбранного
+                    iface.<br />
+                    <strong>Ingress</strong> (входящий) не режется.<br />
+                    <strong>TCP не трогаем</strong>: SSH, HTTP preview
+                    <code>:8765</code>, control WS <code>:8591</code>.<br />
+                    Пресет задаёт delay / jitter / loss / rate (например
+                    <code>lossy</code> → 4 Mbit).
+                  </p>
+                  <h4>3. Пример</h4>
+                  <p className="note">На ноуте с emulate:</p>
+                  <pre className="diagram">${`run-emulate → RTSP H.264 (UDP RTP на lo)
+      ↓
+ffmpeg → MJPEG → HTTP :8765 → браузер (TCP)`}</pre>
+                  <p className="note">
+                    NETEM на <code>lo</code> + <code>match=udp</code> портит
+                    <strong>UDP RTP между драйвером и ffmpeg</strong> → артефакты
+                    на плитках. Картинка в браузере идёт по
+                    <strong>HTTP (TCP)</strong> и обычно выглядит стабильнее,
+                    чем «сырой» uplink.
+                  </p>
+                  <p className="note">
+                    Нужны <code>tc</code> и CAP_NET_ADMIN —
+                    <code>make preview-emulate-sudo</code> или sudo на Jetson.
+                    iface: <code>--netem-iface</code> (иначе <code>lo</code> для
+                    <code>127.0.0.1</code>).
+                  </p>
+                  <h4>Пресеты (по возрастанию rate)</h4>
+                  <table>
+                    <tbody>
+                      ${(netem?.presets || NETEM_FALLBACK).map(
+                        (item) => html`<tr key=${item.id}>
+                          <td>${item.id}</td>
+                          <td>${item.hint}</td>
+                        </tr>`
+                      )}
+                    </tbody>
+                  </table>
+                  <p className="note">
+                    Кнопки NETEM ≠ ABR-профили. ABR — блок выше (link-quality).
+                    «Требуемый uplink» в шапке берёт rate из активного netem-пресета.
+                  </p>
+                </div>
+              </div>
+            </div>`}
+        </div>
+      `;
+    }
+
+    createRoot(document.getElementById("root")).render(html`<${App} />`);
+  </script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+gstreamer_ros_babel_fish (vendored snapshot)
+===========================================
+
+Upstream: https://github.com/StefanFabian/gstreamer_ros_babel_fish
+Commit:   01444de9f1d3ca5e1d830634572d800e005df33f (main, 2026-09-17)
+License:  GNU Affero General Public License v3.0 (see LICENSE)
+
+This tree is a snapshot of the upstream repository used to build
+rbfimagesink in the capture-pipeline Kubernetes image. Docker COPY +
+colcon; no git clone at image build.
+
+Local changes (Humble / L4T r36, ROS 2 Humble):
+- RosNodeInterface: SingleThreadedExecutor when rclcpp < 28 (Humble);
+  EventsExecutor kept for newer distros. Drop EventsExecutor header
+  from ros_node_interface.hpp.
+- format_conversion.cpp: sensor_msgs encodings UYVY/YUYV mapped to
+  Humble names YUV422 / YUV422_YUY2.
+- CMakeLists.txt: omit benchmark executables (they still used
+  EventsExecutor and failed to configure on Humble).
+- test/ and benchmark/ directories omitted (image builds with
+  -DBUILD_TESTING=OFF).

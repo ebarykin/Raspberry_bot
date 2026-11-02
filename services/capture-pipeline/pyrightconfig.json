@@ -1,0 +1,5 @@
+{
+  "extraPaths": ["."],
+  "pythonVersion": "3.12",
+  "include": ["capture_pipeline", "main.py", "scripts", "tests"]
+}

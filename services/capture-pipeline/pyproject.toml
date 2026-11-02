@@ -1,0 +1,26 @@
+[project]
+name = "capture-pipeline"
+version = "0.2.0"
+description = "Multi-camera low-latency RTSP H.264 publisher with WebSocket ABR"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.23,<2",
+  "PyYAML>=6,<7",
+  "websockets>=12,<18",
+]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["capture_pipeline*"]
+
+[tool.basedpyright]
+extraPaths = ["."]
+pythonVersion = "3.12"
+reportMissingImports = true
+
+[tool.pyright]
+extraPaths = ["."]
+pythonVersion = "3.12"

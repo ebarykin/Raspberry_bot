@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+    <transport_descriptors>
+        <transport_descriptor>
+            <transport_id>LocalTransport</transport_id>
+            <type>UDPv4</type>
+            <interfaceWhiteList>
+                <address>127.0.0.1</address>
+            </interfaceWhiteList>
+            <non_blocking_send>true</non_blocking_send>
+            <sendBufferSize>4194304</sendBufferSize>
+            <receiveBufferSize>4194304</receiveBufferSize>
+            <maxMessageSize>65000</maxMessageSize>
+        </transport_descriptor>
+    </transport_descriptors>
+
+    <participant profile_name="local_participant_profile" is_default_profile="true">
+        <rtps>
+            <userTransports>
+                <transport_id>LocalTransport</transport_id>
+            </userTransports>
+
+            <useBuiltinTransports>false</useBuiltinTransports>
+            <defaultUnicastLocatorList>
+                <locator>
+                    <udpv4>
+                        <address>127.0.0.1</address>
+                    </udpv4>
+                </locator>
+            </defaultUnicastLocatorList>
+            <defaultMulticastLocatorList>
+                <locator>
+                    <udpv4>
+                        <address>239.255.0.1</address>
+                    </udpv4>
+                </locator>
+            </defaultMulticastLocatorList>
+        </rtps>
+    </participant>
+</profiles>

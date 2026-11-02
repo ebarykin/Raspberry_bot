@@ -1,0 +1,111 @@
+# Jetson Orin NX + ZED Link Duo: 1× ZED X One S (Argus) → NVENC → RTSP.
+# sensor-id и flip_method — с платы (preflight: Argus index 0, GMSL #0).
+
+source: jetson
+
+rtsp:
+  host: 0.0.0.0
+  suspend_mode: none
+
+control_ws:
+  enabled: true
+  # Streamer подключается по LAN, поэтому loopback здесь не подходит.
+  host: 0.0.0.0
+  port: 8591
+
+abr:
+  default_profile: good
+  min_dwell_s: 5.0
+  profiles:
+    good:     { fps: 30, bitrate_kbps: 1100 } # 4 камеры: 4,4 Mbps
+    normal:   { fps: 30, bitrate_kbps: 700 } # 4 камеры: 2,8 Mbps
+    degraded: { fps: 24, bitrate_kbps: 500 } # 4 камеры: 2,0 Mbps
+    bad:      { fps: 18, bitrate_kbps: 350 } # 4 камеры: 1,4 Mbps
+    critical: { fps: 12, bitrate_kbps: 250 } # 4 камеры: 1,0 Mbps
+
+video:
+  sensor_width: 1920
+  sensor_height: 1200
+  width: 640
+  # Сохраняем нативное соотношение сторон сенсора 16:10 и повышаем
+  # число бит на пиксель без роста общего битрейта.
+  height: 400
+  # Argus modes on this One S (проверено на sandbox):
+  #   1920x1200@60, 1920x1080@60, 960x600@120. Режима 30 fps нет —
+  #   caps framerate=30/1 даёт INVALID_SETTINGS. Teleop режет до 30 через ABR videorate.
+  fps: 60
+  nvmm_format: NV12
+
+encoder:
+  # Runtime bitrate — из ABR. VBV и GOP — горизонт в секундах от текущего bitrate/fps.
+  # VBR: средняя цель 1100 Kbps, до 1320 Kbps на сложных кадрах.
+  control_rate: 0
+  maxperf_enable: true
+  insert_sps_pps: true
+  # L4T R39: FastPreset эффективнее сжимает при том же битрейте без B-frames.
+  preset_level: 2
+  qp_range: "0,51:0,51:0,51"
+  vbv_size: 0
+  vbv_horizon_s: 0.05
+  # IDR на подключении/ABR форсируется кодом; более длинный GOP сохраняет
+  # качество при низком битрейте, не добавляя steady-state latency.
+  gop_s: 0.5
+
+capture:
+  stagger_ms: 200
+
+pipeline:
+  restart_backoff_ms: 500
+  restart_max_backoff_ms: 30000
+
+logging:
+  level: INFO
+  # gst_debug не задан: берётся тихий DEFAULT_GST_DEBUG из config.py
+
+nav:
+  # Sandbox: compressed JPEG через nvjpegenc (не raw BGR — тот сильно грузит CPU).
+  sink_type: rbfimagesink
+  encoding: compressed
+  width: 1920
+  height: 1200
+  fps: 15
+  jpeg_quality: 80
+
+# Clock/parktronic: NVMM→BGRx→CPU. На sandbox выключено ради нагрузки;
+# для glass-to-glass замера временно вернуть clock: true.
+overlay:
+  clock: false
+  time_format: "%H:%M:%S.%f"
+
+cameras:
+  - id: cam0
+    sensor_id: 0
+    rtsp_port: 8586
+    mount: /live
+    enabled: true
+    flip_method: 0
+    # Кто отдаёт кадр: nvarguscamerasrc (CSI/Argus, sensor-id),
+    # nvv4l2camerasrc+device (NVMM), v4l2src+device, videotestsrc.
+    source_type: nvarguscamerasrc
+    ros_name: front_camera
+    nav_enabled: true
+    parktronic: false
+    # CPU-remap дорог для live teleop; включать только с измеренным запасом latency.
+    undistort: false
+    # Пример для откалиброванной One S Wide 110°:
+    # undistort:
+    #   enabled: true
+    #   k1: -0.22
+    #   k2: 0.0
+    #   crop: 1.0
+    # Парктроник (если понадобится снова):
+    # parktronic:
+    #   enabled: true
+    #   hfov_deg: 110.0
+    #   vfov_deg: 79.6
+    #   height_m: 0.80
+    #   pitch_deg: 11.3
+    #   rings_m: [1.0, 2.0]
+    #   rail_half_width_m: 0.70
+    #   y_min_m: 0.55
+    #   fill_style: edge

@@ -1,0 +1,64 @@
+# Эмуляция на VPS 224 для комнаты echd-lab. :8554 занят MediaMTX, :8555/:8591 — стенд asd01.
+# ball :8575 → front (ЕЦХД), smpte :8576 → rear. Control WS только loopback.
+# Запуск: контейнер echd-lab-zed (make echd-lab-up из webrtc-client).
+
+source: emulate
+
+rtsp:
+  host: 0.0.0.0
+  suspend_mode: reset
+
+control_ws:
+  enabled: true
+  host: 127.0.0.1
+  port: 8592
+
+abr:
+  default_profile: good
+  min_dwell_s: 0.5
+  profiles:
+    good:     { fps: 30, bitrate_kbps: 1100 }
+    normal:   { fps: 30, bitrate_kbps: 700 }
+    degraded: { fps: 24, bitrate_kbps: 500 }
+    bad:      { fps: 18, bitrate_kbps: 350 }
+    critical: { fps: 12, bitrate_kbps: 250 }
+
+video:
+  width: 640
+  height: 480
+  fps: 30
+
+capture:
+  stagger_ms: 200
+
+pipeline:
+  restart_backoff_ms: 500
+  restart_max_backoff_ms: 30000
+
+logging:
+  level: INFO
+  gst_debug: "2,rtsp*:2,app*:2"
+
+nav:
+  sink_type: fakesink
+  encoding: compressed
+  width: 1280
+  height: 720
+  fps: 15
+  jpeg_quality: 80
+
+cameras:
+  - id: cam0
+    rtsp_port: 8576
+    mount: /live
+    enabled: true
+    source_type: videotestsrc
+    pattern: smpte
+    nav_enabled: false
+  - id: cam1
+    rtsp_port: 8575
+    mount: /live
+    enabled: true
+    source_type: videotestsrc
+    pattern: ball
+    nav_enabled: false

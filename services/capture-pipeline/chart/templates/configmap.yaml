@@ -1,0 +1,21 @@
+{{- if .Values.config.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.config.mapName }}
+  labels:
+  {{- if $.Values.global }}
+    {{- include "global.labels" $ | nindent 4 }}
+  {{- else }}
+    {{- include "capture-pipeline.labels" $ | nindent 4 }}
+  {{- end }}
+data:
+{{- if .Values.config.override }}
+{{- range $filename, $content := .Values.config.values }}
+  {{ $filename }}: |-
+{{ $content | indent 4 }}
+{{- end }}
+{{- else if .Values.config.lookupGlobal }}
+{{- include "global.capture-pipeline.config" . | nindent 2 }}
+{{- end }}
+{{- end }}

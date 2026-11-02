@@ -1,0 +1,79 @@
+# Ноутбук / CI: 4× videotestsrc → x264enc → appsink/appsrc → RTSP.
+# Запуск: make run-emulate
+
+source: emulate
+
+rtsp:
+  host: 0.0.0.0
+  suspend_mode: reset
+
+control_ws:
+  enabled: true
+  host: 127.0.0.1
+  port: 8591
+
+abr:
+  default_profile: good
+  # В эмуляции профиль можно переключать чаще, чем на Jetson.
+  min_dwell_s: 0.5
+  profiles:
+    good:     { fps: 30, bitrate_kbps: 1100 } # 4 камеры: 4,4 Mbps
+    normal:   { fps: 30, bitrate_kbps: 700 } # 4 камеры: 2,8 Mbps
+    degraded: { fps: 24, bitrate_kbps: 500 } # 4 камеры: 2,0 Mbps
+    bad:      { fps: 18, bitrate_kbps: 350 } # 4 камеры: 1,4 Mbps
+    critical: { fps: 12, bitrate_kbps: 250 } # 4 камеры: 1,0 Mbps
+
+video:
+  width: 640
+  height: 480
+  fps: 30
+
+capture:
+  stagger_ms: 200
+
+pipeline:
+  restart_backoff_ms: 500
+  restart_max_backoff_ms: 30000
+
+logging:
+  level: INFO
+  gst_debug: "2,rtsp*:2,app*:2"
+
+nav:
+  # Эмуляция не требует ROS/rbfimagesink.
+  sink_type: fakesink
+  encoding: compressed
+  width: 1280
+  height: 720
+  fps: 15
+  jpeg_quality: 80
+
+cameras:
+  - id: cam0
+    rtsp_port: 8554
+    mount: /live
+    enabled: true
+    source_type: videotestsrc
+    pattern: smpte
+    nav_enabled: false
+  - id: cam1
+    rtsp_port: 8555
+    mount: /live
+    enabled: true
+    source_type: videotestsrc
+    pattern: ball
+    nav_enabled: false
+  - id: cam2
+    rtsp_port: 8556
+    mount: /live
+    enabled: true
+    source_type: videotestsrc
+    pattern: snow
+    nav_enabled: false
+  - id: cam3
+    rtsp_port: 8557
+    mount: /live
+    enabled: true
+    source_type: videotestsrc
+    pattern: circular
+    nav_enabled: false

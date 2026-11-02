@@ -1,0 +1,118 @@
+# Jetson AGX Orin + ZED Link Quad: 4× Argus → NVENC → appsink/appsrc → RTSP.
+
+source: jetson
+
+rtsp:
+  host: 0.0.0.0
+  suspend_mode: none
+
+control_ws:
+  enabled: true
+  # Streamer подключается по LAN, поэтому loopback здесь не подходит.
+  host: 0.0.0.0
+  port: 8591
+
+abr:
+  default_profile: good
+  min_dwell_s: 5.0
+  profiles:
+    good:     { fps: 30, bitrate_kbps: 1200 } # 4 камеры: 4,8 Mbps
+    normal:   { fps: 30, bitrate_kbps: 800 } # 4 камеры: 3,2 Mbps
+    degraded: { fps: 24, bitrate_kbps: 600 } # 4 камеры: 2,4 Mbps
+    bad:      { fps: 18, bitrate_kbps: 450 } # 4 камеры: 1,8 Mbps
+    critical: { fps: 12, bitrate_kbps: 300 } # 4 камеры: 1,2 Mbps
+
+video:
+  sensor_width: 1920
+  sensor_height: 1200
+  width: 640
+  height: 480
+  fps: 30
+  nvmm_format: NV12
+
+encoder:
+  # Runtime bitrate — из ABR. VBV и GOP — горизонт в секундах от текущего bitrate/fps.
+  control_rate: 1
+  maxperf_enable: true
+  insert_sps_pps: true
+  preset_level: 1
+  qp_range: "0,51:0,51:0,51"
+  vbv_size: 0
+  vbv_horizon_s: 0.2
+  gop_s: 0.33
+
+capture:
+  stagger_ms: 200
+
+pipeline:
+  restart_backoff_ms: 500
+  restart_max_backoff_ms: 30000
+
+logging:
+  level: INFO
+  # gst_debug не задан: берётся тихий DEFAULT_GST_DEBUG из config.py
+
+nav:
+  # Используется только для камер с nav_enabled=true.
+  sink_type: auto
+  encoding: compressed
+  width: 1280
+  height: 720
+  fps: 15
+  jpeg_quality: 100
+
+cameras:
+  - id: cam0
+    sensor_id: 0
+    rtsp_port: 8586
+    mount: /live
+    enabled: true
+    flip_method: 0
+    source_type: nvarguscamerasrc #nvarguscamerasrc, nvcamerasrc
+    nav_enabled: false
+    parktronic:
+      enabled: true
+      hfov_deg: 110.0
+      vfov_deg: 79.6
+      height_m: 0.80
+      pitch_deg: 11.3
+      rings_m: [1.0, 2.0]
+      rail_half_width_m: 0.70
+      y_min_m: 0.55
+      fill_style: edge
+    undistort: false
+    # Текущая Brown-модель рассчитана на pinhole/One S Wide 110°.
+    # Объектив ~196° требует fisheye-модели и реальной калибровки; эти коэффициенты
+    # нельзя подбирать приблизительно. Пример только для откалиброванной 110° камеры:
+    # undistort:
+    #   enabled: true
+    #   k1: -0.22
+    #   k2: 0.0
+    #   crop: 1.0
+  - id: cam1
+    sensor_id: 1
+    rtsp_port: 8587
+    mount: /live
+    enabled: true
+    flip_method: 2
+    source_type: nvarguscamerasrc
+    nav_enabled: false
+    parktronic: false
+  - id: cam2
+    sensor_id: 2
+    rtsp_port: 8588
+    mount: /live
+    enabled: true
+    flip_method: 2
+    source_type: nvarguscamerasrc
+    nav_enabled: false
+    parktronic: false
+  - id: cam3
+    sensor_id: 3
+    rtsp_port: 8589
+    mount: /live
+    enabled: true
+    flip_method: 0
+    source_type: nvarguscamerasrc
+    nav_enabled: false
+    parktronic: false
