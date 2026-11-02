@@ -1,0 +1,16 @@
+---
+description: Image and Compose constraints
+globs: "**/Dockerfile,**/Dockerfile.*,**/compose*.yaml,**/.dockerignore,deploy/**"
+alwaysApply: false
+---
+
+# Docker
+
+The `robot-gateway` image exists. Other Dockerfiles and Compose wait for the capture-pipeline and webrtc-client-go URLs in ADR 0006. When they appear:
+
+- One Dockerfile per service. ROS images use an explicit `ros:jazzy-*` tag.
+- A Go image uses a multi-stage build and a minimal runtime base.
+- Any build context that copies source has a `.dockerignore`.
+- `privileged: true` needs an ADR that names the device it unlocks.
+- `network_mode: host` does not by itself share Cyclone DDS memory between containers. Check the Cyclone configuration before relying on shared memory.
+- The robot runs pinned images. It does not rebuild on every start.

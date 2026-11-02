@@ -1,0 +1,38 @@
+---
+description: Core architecture and development boundaries
+alwaysApply: true
+---
+
+# Project Architecture
+
+Teleoperated robot on Raspberry Pi 5 (8 GB), Debian 13 ARM64.
+System name: teleop-robot. ROS 2 runs only inside Ubuntu 24.04 containers.
+
+## Services
+
+1. `webrtc-client-go` — Go service for WebRTC media and a rosbridge WebSocket client. No ROS 2 libraries.
+2. `robot-gateway` — stock `rosbridge_server` plus the `get_capabilities` node. A custom bridge needs an ADR.
+3. `motion-supervisor` — ROS 2 node. Receives teleop commands and publishes validated commands. A pass-through is not a safety mechanism.
+4. `chassis-controller` — ROS 2 node. Traction: IBT-2 (BTS7960), PWM from the PCA9685 over I2C; on timeout both RPWM and LPWM go off. Steering, first stage: SG90 on Raspberry Pi GPIO at 50 Hz, not on that PCA9685. Further controllers use the same `{subsystem}-controller` name.
+5. `capture-pipeline` — camera capture and RTSP. No ROS 2.
+
+## Rules
+
+- ROS services live in this repository. `capture-pipeline` is imported as a git subtree. `webrtc-client-go` is a Git submodule. Each service owns its dependencies and Dockerfile.
+- No shared library between the WebRTC client and the ROS 2 nodes. Contracts live in `docs/interfaces.md`.
+- ROS 2 transport is Cyclone DDS (`rmw_cyclonedds_cpp`, ADR 0007) and stays on the robot. Do not publish it to external networks.
+- Use standard ROS 2 types. Do not copy them into `ros2_interfaces`.
+- Keep platform configuration in `config/`, not in code.
+- A new service or abstraction layer needs an ADR.
+- A substantial architecture change updates the matching ADR.
+- Use structured logging once a service has code.
+
+## Deferred
+
+ADR 0006: steering is SG90 on Pi GPIO at 50 Hz; traction stays on the PCA9685. Remaining ROS packages, Compose, other Dockerfiles, and the subtree or submodule import wait for both source URLs. Exception: `robot_gateway`, `robot_interfaces`, and the `robot-gateway` image (ADR 0008).
+
+## Workflow
+
+Before editing, read the local code and name the services and contracts you will touch. Change only what the task needs.
+After editing, run the checks that already exist and update docs when a contract changes.
+Reply to the developer in Russian. Identifiers and code comments stay in English.

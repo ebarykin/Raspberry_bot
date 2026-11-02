@@ -1,0 +1,7 @@
+event: robot-config
+payload:
+  schema_version: "1"
+  units: si
+  limits: {}
+  start_velocity: {}
+  commands: []

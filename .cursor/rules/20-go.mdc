@@ -1,0 +1,14 @@
+---
+description: Go constraints for webrtc-client-go
+globs: "**/*.go,**/go.mod,**/go.sum"
+alwaysApply: false
+---
+
+# Go
+
+`webrtc-client-go` is a Git submodule. Its Go module lives in that repository.
+
+- Do not add a `go.mod` to this repository for the client. No repository-wide `go.mod`.
+- Do not cgo-link ROS 2.
+- Cancel socket and stream work with `context.Context`.
+- Build with a multi-stage Dockerfile and a minimal runtime image.

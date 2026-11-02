@@ -1,0 +1,33 @@
+---
+description: ROS 2 Jazzy package and node rules
+globs: "services/motion-supervisor/**,services/chassis-controller/**,services/robot-gateway/**,ros2_interfaces/**"
+alwaysApply: false
+---
+
+# ROS 2
+
+Target ROS 2 Jazzy inside the Ubuntu 24.04 container. Do not install Jazzy on the Debian 13 host.
+
+## Packages
+
+- Nodes use `ament_python`: `package.xml`, `setup.py`, `setup.cfg`, and `resource/<package_name>`.
+- Shared interfaces use `ament_cmake` and `rosidl` in `ros2_interfaces/robot_interfaces`.
+- Package and node names are `snake_case`.
+- Do not copy standard messages such as `geometry_msgs` into this repo.
+- `GetCapabilities` belongs to `robot_gateway`. It returns a JSON string from `config/capabilities.yaml`. Do not expand that envelope into ROS fields.
+
+## Nodes
+
+- Use `rclpy`. Log with the node logger.
+- Use explicit topic and service names. Write the QoS profile next to the publisher or subscription.
+- Callbacks stay short. Periodic work uses timers.
+- Keep transport, control, and hardware I/O in separate modules.
+- Validate a command before it reaches an actuator.
+- Drop stale motion commands. On timeout, output a safe zero. For traction, clear both IBT-2 PWM inputs. Do not emit an ESC neutral pulse. First-stage steering is an SG90 on Pi GPIO at 50 Hz, not a channel on the traction PCA9685.
+
+## Discovery
+
+Local discovery is `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST`.
+`ROS_LOCALHOST_ONLY` is removed in Jazzy and silently ignored. Do not set it.
+The RMW is Cyclone DDS: `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`. Do not switch it without an ADR.
+`rmw_zenoh` does not honor the discovery variables above. This project does not use it.

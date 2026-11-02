@@ -1,0 +1,15 @@
+.git
+.cursor
+**/.pytest_cache
+**/__pycache__
+**/*.pyc
+**/*.egg-info
+typecheck
+docs
+tests
+scripts
+deploy
+services/webrtc-client-go
+services/capture-pipeline
+services/motion-supervisor
+services/chassis-controller

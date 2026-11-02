@@ -1,0 +1,13 @@
+---
+description: Unit and integration test boundaries
+globs: "**/test/**,**/tests/**,**/*_test.py,**/*_test.go"
+alwaysApply: false
+---
+
+# Testing
+
+- Unit tests cover control logic without hardware, cameras, or a live ROS graph.
+- Command timeout and the safe-zero output have their own tests. A pass-through test does not replace them.
+- Python tests use pytest. ROS packages run `colcon test` inside the Jazzy container.
+- Go tests stay inside the `webrtc-client-go` module.
+- Tests under `tests/integration` may need Docker. They still do not require the physical chassis.

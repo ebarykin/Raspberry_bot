@@ -1,0 +1,14 @@
+---
+description: Python style for service code
+globs: "**/*.py"
+alwaysApply: false
+---
+
+# Python
+
+- Each service has its own dependency file. There is no repository-wide `requirements.txt`.
+- Pin direct dependencies.
+- Type public functions.
+- Raise specific exceptions and do not swallow them.
+- Library code and nodes do not call `print()`. ROS 2 nodes log through `rclpy`.
+- `webrtc-client-go` and `capture-pipeline` do not import `rclpy` or any other ROS 2 package.
