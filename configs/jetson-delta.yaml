@@ -1,0 +1,190 @@
+# Ровер delta (AGX Orin, L4T R36.4.7). Раскладка из
+# zzz-secondary/jetson-rtsp-cameras (ветка JP6.2 8-camera, config/defaults.env).
+# Захват: nvv4l2camerasrc /dev/videoN (NVMM, не CPU v4l2src). Все 8 на :8554.
+# Teleop: sensor 1920×1536 → nvvidconv → 640×512 → NVENC.
+# NAV: все камеры → JPEG (nvjpegenc) 1920×1536 @ 15.
+#
+# CAM_MAP: 0 right_120, 1 rear_190, 2 front_center_190, 3 right_190,
+#          4 front_left_120, 5 front_right_120 (IMX490 2880×1860),
+#          6 left_120, 7 left_190.
+# Остальные — ISX031 1920×1536, UYVY. flip 180 → nvvidconv flip-method=2.
+# cam5 в CAM_MAP опечатка foront_right_120.
+#
+# device — /dev/videoN. Нужен для v4l2src и nvv4l2camerasrc.
+# nvarguscamerasrc device не читает: сенсор задаёт sensor_id.
+
+source: jetson
+
+rtsp:
+  host: 0.0.0.0
+  suspend_mode: none
+
+control_ws:
+  enabled: true
+  host: 0.0.0.0
+  port: 8591
+
+abr:
+  default_profile: good
+  min_dwell_s: 5.0
+  profiles:
+    good:     { fps: 30, bitrate_kbps: 1200 }
+    normal:   { fps: 30, bitrate_kbps: 800 }
+    degraded: { fps: 24, bitrate_kbps: 600 }
+    bad:     { fps: 18, bitrate_kbps: 450 }
+    critical: { fps: 12, bitrate_kbps: 300 }
+
+video:
+  sensor_width: 1920
+  sensor_height: 1536
+  width: 640
+  height: 512
+  fps: 30
+  nvmm_format: NV12
+
+encoder:
+  control_rate: 1
+  maxperf_enable: true
+  insert_sps_pps: true
+  preset_level: 1
+  qp_range: "0,51:0,51:0,51"
+  vbv_size: 0
+  vbv_horizon_s: 0.2
+  gop_s: 0.33
+
+capture:
+  stagger_ms: 200
+
+pipeline:
+  restart_backoff_ms: 500
+  restart_max_backoff_ms: 30000
+
+logging:
+  level: INFO
+  # gst_debug не задан: берётся тихий DEFAULT_GST_DEBUG из config.py
+
+nav:
+  sink_type: auto
+  encoding: compressed
+  width: 1920
+  height: 1536
+  fps: 15
+  jpeg_quality: 80
+
+cameras:
+  - id: front_left_120
+    sensor_id: 4
+    device: /dev/video4
+    rtsp_port: 8554
+    mount: /front_left_120
+    enabled: true
+    flip_method: 0
+    source_type: nvv4l2camerasrc
+    ros_name: front_left_120
+    nav_enabled: false
+    parktronic: false
+    undistort: false
+
+  - id: left_120
+    sensor_id: 6
+    device: /dev/video6
+    rtsp_port: 8554
+    mount: /left_120
+    enabled: true
+    flip_method: 2
+    source_type: nvv4l2camerasrc
+    ros_name: left_120
+    nav_enabled: false
+    parktronic: false
+    undistort: false
+
+  - id: left_190
+    sensor_id: 7
+    device: /dev/video7
+    rtsp_port: 8554
+    mount: /left_190
+    enabled: true
+    flip_method: 2
+    source_type: nvv4l2camerasrc
+    ros_name: left_190
+    nav_enabled: false
+    parktronic: false
+    undistort: false
+
+  - id: right_120
+    sensor_id: 0
+    device: /dev/video0
+    rtsp_port: 8554
+    mount: /right_120
+    enabled: true
+    flip_method: 2
+    source_type: nvv4l2camerasrc
+    ros_name: right_120
+    nav_enabled: false
+    parktronic: false
+    undistort: false
+
+  - id: right_190
+    sensor_id: 3
+    device: /dev/video3
+    rtsp_port: 8554
+    mount: /right_190
+    enabled: true
+    flip_method: 2
+    source_type: nvv4l2camerasrc
+    ros_name: right_190
+    nav_enabled: false
+    parktronic: false
+    undistort: false
+
+  - id: rear_190
+    sensor_id: 1
+    device: /dev/video1
+    rtsp_port: 8554
+    mount: /rear_190
+    enabled: true
+    flip_method: 0
+    source_type: nvv4l2camerasrc
+    ros_name: rear_190
+    nav_enabled: false
+    parktronic: false
+    undistort: false
+
+  - id: front_center_190
+    sensor_id: 2
+    # nvv4l2camerasrc / v4l2src: обязателен. Argus: не нужен (там sensor_id).
+    device: /dev/video2
+    rtsp_port: 8554
+    mount: /front_center_190
+    enabled: true
+    flip_method: 0
+    source_type: nvv4l2camerasrc
+    ros_name: front_camera
+    nav_enabled: false
+    # Выкл: cairooverlay на CPU ~10% ядра. Числа оставлены, чтобы включить обратно.
+    parktronic:
+      enabled: false
+      # Пинхол <180°. 160 / 155.1 под кадр ISX031 1920×1536 (5:4).
+      hfov_deg: 160.0
+      vfov_deg: 155.1
+      height_m: 0.80
+      pitch_deg: 11.3
+      rings_m: [1.0, 2.0]
+      rail_half_width_m: 0.70
+      y_min_m: 0.55
+      fill_style: edge
+    undistort: false
+
+  # IMX490 2880×1860, глобальный sensor 1920×1536 — захват может не открыться.
+  - id: front_right_120
+    sensor_id: 5
+    device: /dev/video5
+    rtsp_port: 8554
+    mount: /front_right_120
+    enabled: true
+    flip_method: 2
+    source_type: nvv4l2camerasrc
+    ros_name: front_right_120
+    nav_enabled: false
+    parktronic: false
+    undistort: false

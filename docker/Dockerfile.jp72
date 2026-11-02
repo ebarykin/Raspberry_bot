@@ -1,0 +1,43 @@
+# Робособаки. JetPack 7.2 / L4T R39.2, Ubuntu 24.04, ROS 2 Jazzy.
+# Камера и NVENC в образ не входят: их монтирует Helm или jetson_docker.sh с хоста.
+#
+# l4t-base для R39 нет. База ubuntu:24.04 — тот же userspace, что на плате;
+# библиотеки Tegra приходят с хоста и линкуются.
+# Другой mirror той же Ubuntu: --build-arg BASE_IMAGE=<ubuntu-24.04>.
+# JetPack 6.2 этим файлом не собирается — для роверов docker/Dockerfile.jp62.
+#
+# Контекст — каталог capture-pipeline:
+#   docker build -f docker/Dockerfile.jp72 -t capture-pipeline:jp72 .
+
+ARG BASE_IMAGE=ubuntu:24.04
+FROM ${BASE_IMAGE}
+
+ARG ROS_DISTRO=jazzy
+ARG ROS_APT_SUITE=noble
+
+COPY docker/install.sh /tmp/install.sh
+RUN ROS_DISTRO="${ROS_DISTRO}" ROS_APT_SUITE="${ROS_APT_SUITE}" bash /tmp/install.sh apt
+RUN ROS_DISTRO="${ROS_DISTRO}" ROS_APT_SUITE="${ROS_APT_SUITE}" bash /tmp/install.sh ros
+
+WORKDIR /opt/nav_ws
+COPY third_party/gstreamer_ros_babel_fish src/gstreamer_ros_babel_fish
+RUN ROS_DISTRO="${ROS_DISTRO}" bash /tmp/install.sh babel
+
+WORKDIR /app
+COPY main.py ./
+COPY capture_pipeline ./capture_pipeline
+COPY configs ./configs
+COPY chart/files/dds/cyclonedds.xml /rmw/cyclonedds.xml
+COPY docker/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh \
+    && ROS_DISTRO="${ROS_DISTRO}" bash /tmp/install.sh shell \
+    && rm -f /tmp/install.sh
+
+ENV CONFIG_PATH=/config/config.yaml
+ENV PYTHONUNBUFFERED=1
+ENV ROS_DISTRO=${ROS_DISTRO}
+ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+ENV ROS_DOMAIN_ID=0
+ENV CYCLONEDDS_URI=file:///rmw/cyclonedds.xml
+
+ENTRYPOINT ["/app/entrypoint.sh"]

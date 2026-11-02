@@ -1,0 +1,20 @@
+
+{{- $configmaps := .Values.configmaps }}
+{{- range $cmName, $files := $configmaps }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $cmName }}
+  labels:
+  {{- if $.Values.global }}
+    {{- include "global.labels" $ | nindent 4 }}
+  {{- else }}
+    {{- include "capture-pipeline.labels" $ | nindent 4 }}
+  {{- end }}
+data:
+{{- range $filename, $content := $files }}
+  {{ $filename }}: |-
+{{ $content | indent 4 }}
+{{- end }}
+---
+{{- end }}

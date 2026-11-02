@@ -1,0 +1,342 @@
+image:
+  # Replace with the appropriate organization/registry. The image name defaults to the chart name.
+  # Default is the JetPack 7.2 image (docker/Dockerfile.jp72). JetPack 6.2 robots override it with
+  # cr.selcloud.ru/sandbox/last-mile/drivers/capture-pipeline (docker/Dockerfile.jp62).
+  repository: cr.selcloud.ru/sandbox/last-mile/drivers/capture-pipeline-jp72
+  # Default pull policy. Leave as is unless you have a specific reason to change it.
+  pullPolicy: IfNotPresent
+  # Leave tag empty to use the chart version.
+  tag: ""
+
+# Name of the secret with docker pull credentials. If empty, the global value from the umbrella release is used.
+imagePullSecret: ""
+
+# Do not change unless necessary.
+nameOverride: ""
+fullnameOverride: ""
+
+# Keep Deployment: a StatefulSet with OrderedReady never replaces a pod that is not Ready.
+kind: Deployment
+
+# Recreate frees the host RTSP ports and Argus before the new pod starts.
+updateStrategy:
+  type: Recreate
+
+# Use hostNetwork.enabled to make the pod use the host network. If hostNetwork.override is true, the local "enabled" value is used instead of the global one.
+# RTSP is published on host ports and Argus needs host devices.
+hostNetwork:
+  override: false
+  enabled: true
+
+# Use the host PID namespace. Needed only for init containers that enter host namespaces (nsenter).
+# Set to true together with the reset-argus-daemon init container below.
+hostPID: false
+
+# Clients reach RTSP and the control WS on the host network, so no Service is needed.
+service:
+  enabled: false
+  type: ClusterIP
+  internalPort: 80
+  outerPort: 30080
+
+ingress:
+  enabled: false
+  ingressClassName: ""
+  annotations: {}
+
+  hosts: []
+
+  tls: []
+
+# DDS configuration.
+dds:
+  # Uses the global config if present. If there is no global config, the contents of the files/dds folder are used.
+
+  # Set fromValues to true to take files from dds.files.
+  fromValues: false
+  files: []
+  # Ignore other global DDS parameters.
+  overrideParams: false
+  # Alias for the ROS_DOMAIN_ID variable. Ignored if a global value is present.
+  rosDomainId: 0
+
+  # Choose cyclonedds or fastdds. Ignored if a global value is present.
+  type: cyclonedds
+
+  # Path to the DDS config file for the selected type. Ignored if a global value is present.
+  configPath: ""
+
+  # Configmap name to use when there is no global name.
+  configmapName: dds-capture-pipeline
+
+# Configuration for a module-specific config.
+config:
+  # Should the chart create a configmap for the application? If false, the chart will not create a configmap.
+  enabled: false
+
+  # If true, the chart will look for a global config template named global.capture-pipeline.config. If false, it will use the local config template.
+  lookupGlobal: false
+
+  # Path where the configmap will be mounted in the container.
+  mountPath: /config
+  # Configmap name for the configmap. Do not change this unless you know what you are doing.
+  mapName: config-capture-pipeline
+
+  # If true, the chart will use the values in config.values to create the configmap. If false, it will use the local config template.
+  override: false
+  values: ""
+  # Example:
+  # file1: |
+  #   example: config
+  # file2: |
+  #   example-another-config
+
+# Create arbitrary configmaps.
+configmaps: {}
+  # mapName1:
+  #   file1: |
+  #     example: config
+  #   file2: |
+  #     example: another-config
+  # mapName2:
+  #   file3: |
+  #     example: config
+  #   file4: |
+  #     example: another-config
+
+# Default entrypoint command. If not specified, the chart will use the default command from the image.
+command: []
+
+# Default entrypoint arguments. If not specified, the chart will use the default arguments from the image.
+arguments: []
+
+# Get environment variables from secrets. Rarely needed.
+envFromSecrets: []
+  # - name: secret-name
+  #   secret:
+  #     ENV_VAR_NAME: "var_name_in_secret"
+
+env:
+  CONFIG_PATH: /config/config.yaml
+  PYTHONUNBUFFERED: "1"
+  LD_LIBRARY_PATH: /usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra-egl:/usr/lib/aarch64-linux-gnu/nvidia
+  # rbfimagesink from the image, then Argus/NVENC/nvjpegenc from the Jetson host.
+  GST_PLUGIN_PATH: /opt/nav_ws/install/gstreamer_ros_babel_fish/lib/gstreamer-1.0-plugins:/usr/lib/aarch64-linux-gnu/gstreamer-1.0
+  # nvv4l2h264enc: dummy /dev/v4l2-nvenc (c 1,3) with ioctl through this plugin.
+  LIBV4L2_PLUGIN: /usr/lib/aarch64-linux-gnu/libv4l/plugins/nv/libv4l2_nvvideocodec.so
+  # Do not set FASTDDS_BUILTIN_TRANSPORTS / ROS_DISABLE_LOANED_MESSAGES here: the defaults are compressed nav
+  # images over Cyclone DDS. LARGE_DATA is needed only for raw 2.76 MB frames over Fast DDS (set it in perception too).
+  # FASTDDS_BUILTIN_TRANSPORTS: "LARGE_DATA?max_msg_size=4MB&sockets_size=8MB&non_blocking=true"
+  # ROS_DISABLE_LOANED_MESSAGES: "1"
+
+# Time to kill container. Use 0 to kill immediately. Use a positive integer to give the container time to clean up before being killed.
+# Argus is released only if the SIGTERM path completes; SIGKILL in the middle of teardown leaves sessions stuck in nvargus-daemon.
+# A normal shutdown exits as soon as teardown is done, so this does not delay restarts.
+terminationGracePeriodSeconds: 20
+
+# Do not change unless necessary.
+serviceAccount:
+  create: false
+  automount: true
+  annotations: {}
+  name: ""
+
+# Additional pod annotations and labels.
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+  #  Example:
+  #  privileged: true
+
+# Argus and NVMM access on Jetson.
+securityContext:
+  privileged: true
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+resources: {}
+  # limits:
+  #   cpu: "6"
+  #   memory: 16G
+  #   nvidia.com/gpu: "1"
+  # requests:
+  #   cpu: "6"
+  #   memory: 16G
+  #   nvidia.com/gpu: "1"
+
+# Probes. startupProbe holds off liveness/readiness until a slow start (sensors, discovery) completes.
+# Startup does not require a playing camera: otherwise a pod without an Argus provider is killed every ~170s,
+# and init containers are not rerun on a container restart. Process liveness is the control WS answer.
+startupProbe:
+  exec:
+    command:
+      - python3
+      - -m
+      - capture_pipeline.healthcheck
+  # Gst.init, plugin scan and camera discovery run before :8591 is up.
+  initialDelaySeconds: 30
+  periodSeconds: 2
+  timeoutSeconds: 3
+  failureThreshold: 75
+
+# Control WS answer and a non-empty camera list, without requiring playing.
+# 30s x 3 misses = ~90s: shorter fails during systemctl restart nvargus-daemon, longer leaves a hung robot without video.
+livenessProbe:
+  exec:
+    command:
+      - python3
+      - -m
+      - capture_pipeline.healthcheck
+  periodSeconds: 30
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# At least one camera playing. Not Ready without frames, but never restarted by this probe.
+readinessProbe:
+  exec:
+    command:
+      - python3
+      - -m
+      - capture_pipeline.healthcheck
+      - --require-playing
+  periodSeconds: 2
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+volumes:
+  - name: host-dev
+    hostPath:
+      path: /dev
+  # Directory, not the socket file: kubelet must not create /tmp/argus_socket
+  # as a dir/file before nvargus-daemon, and a daemon restart must not leave
+  # the container on a stale socket inode.
+  - name: host-tmp
+    hostPath:
+      path: /tmp
+      type: Directory
+  - name: host-tegra
+    hostPath:
+      path: /usr/lib/aarch64-linux-gnu/tegra
+  - name: host-tegra-egl
+    hostPath:
+      path: /usr/lib/aarch64-linux-gnu/tegra-egl
+  - name: host-libglesv2
+    hostPath:
+      path: /usr/lib/aarch64-linux-gnu/libGLESv2.so.2
+      type: File
+  - name: host-libglesv2-1
+    hostPath:
+      path: /usr/lib/aarch64-linux-gnu/libGLESv2.so.2.1.0
+      type: File
+  - name: host-gst
+    hostPath:
+      path: /usr/lib/aarch64-linux-gnu/gstreamer-1.0
+  - name: host-libv4l
+    hostPath:
+      path: /usr/lib/aarch64-linux-gnu/libv4l
+      type: Directory
+  - name: host-libv4l-nvidia
+    hostPath:
+      path: /usr/lib/aarch64-linux-gnu/nvidia
+      type: Directory
+  - name: host-egl
+    hostPath:
+      path: /usr/lib/aarch64-linux-gnu/libEGL.so.1.1.0
+      type: File
+  - name: host-nvexif
+    hostPath:
+      path: /usr/lib/aarch64-linux-gnu/libgstnvexifmeta.so
+      type: File
+  - name: host-nvivameta
+    hostPath:
+      path: /usr/lib/aarch64-linux-gnu/libgstnvivameta.so
+      type: File
+  - name: host-nvegl
+    hostPath:
+      path: /usr/lib/aarch64-linux-gnu/libgstnvegl-1.0.so.0
+      type: File
+
+# use extraVolumes to add additional volumes to the pod.
+extraVolumes: []
+  # - name: dev
+  #   hostPath:
+  #     path: /dev
+
+# Mount points for the volumes.
+volumeMounts:
+  - name: host-dev
+    mountPath: /dev
+  - name: host-tmp
+    mountPath: /tmp
+  - name: host-tegra
+    mountPath: /usr/lib/aarch64-linux-gnu/tegra
+  - name: host-tegra-egl
+    mountPath: /usr/lib/aarch64-linux-gnu/tegra-egl
+    readOnly: true
+  - name: host-libglesv2
+    mountPath: /usr/lib/aarch64-linux-gnu/libGLESv2.so.2
+    readOnly: true
+  - name: host-libglesv2-1
+    mountPath: /usr/lib/aarch64-linux-gnu/libGLESv2.so.2.1.0
+    readOnly: true
+  - name: host-gst
+    mountPath: /usr/lib/aarch64-linux-gnu/gstreamer-1.0
+    readOnly: true
+  - name: host-libv4l
+    mountPath: /usr/lib/aarch64-linux-gnu/libv4l
+    readOnly: true
+  - name: host-libv4l-nvidia
+    mountPath: /usr/lib/aarch64-linux-gnu/nvidia
+    readOnly: true
+  - name: host-egl
+    mountPath: /usr/lib/aarch64-linux-gnu/libEGL.so.1
+    readOnly: true
+  - name: host-nvexif
+    mountPath: /usr/lib/aarch64-linux-gnu/libgstnvexifmeta.so
+    readOnly: true
+  - name: host-nvivameta
+    mountPath: /usr/lib/aarch64-linux-gnu/libgstnvivameta.so
+    readOnly: true
+  - name: host-nvegl
+    mountPath: /usr/lib/aarch64-linux-gnu/libgstnvegl-1.0.so.0
+    readOnly: true
+
+extraVolumeMounts: []
+  # - name: dev
+  #   mountPath: /dev
+
+nodeSelector: {}
+
+tolerations: {}
+  # - key: "nvidia.com/gpu"
+  #   operator: "Exists"
+  #   effect: "NoSchedule"
+
+# Set "runtimeClassName" to "nvidia" if you need to use NVIDIA GPU. Otherwise, leave it empty.
+runtimeClassName: ""
+
+affinity: {}
+
+# Additional init containers to run before the main container starts.
+# Only "name" is required - any field left unset falls back to the main
+# container's equivalent value (image, imagePullPolicy, securityContext,
+# resources, command, arguments, env, envFromSecrets, volumeMounts,
+# extraVolumeMounts). Global env/envFromSecrets, DDS env and the /rmw mount
+# are always applied, same as for the main container.
+initContainers:
+  # Optional, goes first and needs hostPID: true. Restarts nvargus-daemon on the host: the daemon does not
+  # release a CaptureSession when the previous pod died without a graceful shutdown (OOM, --force,
+  # SIGKILL by a probe timeout), and some cameras stay unavailable until it restarts. Drops cameras of
+  # other Argus consumers on the host during the restart.
+  # - name: reset-argus-daemon
+  #   command: ["nsenter", "--target", "1", "--mount", "--uts", "--ipc", "--net", "--pid", "--",
+  #             "systemctl", "restart", "nvargus-daemon"]
+  # Wait for /tmp/argus_socket, then probe nvarguscamerasrc in PAUSED every 2s until the daemon answers
+  # (a provider is created or a camera error is returned, not an RPC timeout).
+  - name: wait-argus-socket
+    command: ["python3", "-u", "-m", "capture_pipeline.argus_ready", "--timeout", "120", "--grace", "0"]

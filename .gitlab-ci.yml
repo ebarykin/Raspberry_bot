@@ -1,0 +1,77 @@
+stages:
+  - verify
+  - versioning
+  - app-build
+  - helm-build
+  - tagging
+  - dependency-update
+
+unit-test:
+  stage: verify
+  tags:
+    - kubernetes-sre
+  image: python:3.12-slim
+  before_script:
+    - python -m pip install --no-cache-dir -e . pytest
+  script:
+    - python -m pytest -q
+
+include:
+  - component: $CI_SERVER_FQDN/last-mile-robotics/infrastructure/devops-utils/templates-catalog/versioning@0.0.3
+    inputs:
+      strategy: "gitflow"
+    rules:
+      - if: '$CI_COMMIT_TAG == null'
+
+  - component: $CI_SERVER_FQDN/last-mile-robotics/infrastructure/devops-utils/templates-catalog/docker_build_push@0.0.4
+    inputs:
+        stage: app-build
+        dockerBuildMatrix:
+          # JetPack 6.2, роверы.
+          - DOCKER_NAME: last-mile/drivers/capture-pipeline
+            DOCKER_PATH: ./docker/Dockerfile.jp62
+            BUILD_PLATFORM: linux/arm64
+            DOCKER_CONTEXT: .
+          # JetPack 7.2. Этот репозиторий — значение image.repository в чарте.
+          - DOCKER_NAME: last-mile/drivers/capture-pipeline-jp72
+            DOCKER_PATH: ./docker/Dockerfile.jp72
+            BUILD_PLATFORM: linux/arm64
+            DOCKER_CONTEXT: .
+    rules:
+      - if: '$CI_COMMIT_TAG == null'
+
+  - component: $CI_SERVER_FQDN/last-mile-robotics/infrastructure/devops-utils/templates-catalog/helm_build_push@0.0.3
+    inputs:
+        stage: helm-build
+        helmChartName: capture-pipeline
+    rules:
+      - if: '$CI_COMMIT_TAG == null'
+
+  - component: $CI_SERVER_FQDN/last-mile-robotics/infrastructure/devops-utils/templates-catalog/tagging@0.0.3
+
+versioning:
+  tags:
+    - kubernetes-sre
+
+cloud-build:
+  tags:
+    - kubernetes-sre
+
+helm-build:
+  tags:
+    - kubernetes-sre
+
+tagging:
+  tags:
+    - kubernetes-sre
+  rules:
+    - if: '$CI_COMMIT_TAG == null && $CI_COMMIT_BRANCH == "master"'
+
+update_dogster_chart_dependency_develop:
+  stage: dependency-update
+  allow_failure: true
+  trigger:
+    project: last-mile-robotics/fleet/dogster-impl
+    branch: develop
+  rules:
+    - if: '$CI_COMMIT_TAG == null'

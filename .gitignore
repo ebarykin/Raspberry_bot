@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.Python
+
+# Virtualenv
+.venv/
+venv/
+.env
+.python-version
+
+# Local / machine-specific config overrides
+config.local.yaml
+configs/*.local.yaml
+docker/compose.l4t.override.yaml
+.pytest_cache/
+build/
+dist/
+*.egg-info/
+
+# Local planning (keep out of git index)
+REFACTORING.md
+docs/
+
+# Snapshots from make snapshot-* / jetson-snapshot*
+snapshots/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+
+# Logs / temp
+*.log
+*.pid

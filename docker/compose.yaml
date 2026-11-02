@@ -1,0 +1,65 @@
+# Стенд Jetson: запуск готового образа из registry (не docker build на плате).
+#
+# В образе: код приложения. Здесь (git на хосте): этот compose, jetson_docker.sh,
+# configs/*.yaml — YAML монтируется в /config/config.yaml (см. volumes).
+#
+# С ноутбука:  make capture-up JETSON_SSH=jetson DOCKER_CONFIG=configs/….yaml
+# На плате:    bash scripts/jetson_docker.sh up configs/….yaml
+#              (или compose с --env-file docker/.env — см. .env.example)
+#
+# CAPTURE_IMAGE / CONFIG_HOST: jetson_docker.sh или docker/.env.
+# tegra/gst с хоста, как в Helm. Опциональные .so — compose.l4t.override.yaml.
+
+name: capture-pipeline
+
+services:
+  capture-pipeline:
+    image: ${CAPTURE_IMAGE:-cr.selcloud.ru/sandbox/last-mile/drivers/capture-pipeline-jp72:latest}
+    container_name: capture-pipeline
+    pull_policy: ${PULL_POLICY:-always}
+    network_mode: host
+    privileged: true
+    restart: unless-stopped
+    stop_grace_period: 20s
+    environment:
+      CONFIG_PATH: /config/config.yaml
+      PYTHONUNBUFFERED: "1"
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
+      CYCLONEDDS_URI: file:///rmw/cyclonedds.xml
+      LD_LIBRARY_PATH: /usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra-egl:/usr/lib/aarch64-linux-gnu/nvidia
+      GST_PLUGIN_PATH: /opt/nav_ws/install/gstreamer_ros_babel_fish/lib/gstreamer-1.0-plugins:/usr/lib/aarch64-linux-gnu/gstreamer-1.0
+      LIBV4L2_PLUGIN: /usr/lib/aarch64-linux-gnu/libv4l/plugins/nv/libv4l2_nvvideocodec.so
+      __EGL_VENDOR_LIBRARY_FILENAMES: /usr/lib/aarch64-linux-gnu/tegra-egl/nvidia.json
+    volumes:
+      - ${CONFIG_HOST:-./configs/jetson-duo-one-s.yaml}:/config/config.yaml:ro
+      - /dev:/dev
+      - /tmp:/tmp
+      - /usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra
+      - /usr/lib/aarch64-linux-gnu/tegra-egl:/usr/lib/aarch64-linux-gnu/tegra-egl:ro
+      - /usr/lib/aarch64-linux-gnu/gstreamer-1.0:/usr/lib/aarch64-linux-gnu/gstreamer-1.0:ro
+      - /usr/lib/aarch64-linux-gnu/libv4l:/usr/lib/aarch64-linux-gnu/libv4l:ro
+      - type: bind
+        source: /usr/lib/aarch64-linux-gnu/libGLESv2.so.2
+        target: /usr/lib/aarch64-linux-gnu/libGLESv2.so.2
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /usr/lib/aarch64-linux-gnu/libGLESv2.so.2.1.0
+        target: /usr/lib/aarch64-linux-gnu/libGLESv2.so.2.1.0
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /usr/lib/aarch64-linux-gnu/libEGL.so.1.1.0
+        target: /usr/lib/aarch64-linux-gnu/libEGL.so.1
+        read_only: true
+        bind:
+          create_host_path: false
+    healthcheck:
+      test: ["CMD", "python3", "-m", "capture_pipeline.healthcheck"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 60s

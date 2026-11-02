@@ -1,0 +1,171 @@
+apiVersion: apps/v1
+kind: {{ .Values.kind }}
+metadata:
+  name: {{ include "capture-pipeline.fullname" . }}
+  labels:
+    {{- include "capture-pipeline.labels" . | nindent 4 }}
+spec:
+  {{- if eq .Values.kind "Deployment" }}
+  strategy:
+  {{- toYaml .Values.updateStrategy | nindent 4 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "capture-pipeline.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+
+        checksum/dds-config: {{ include "capture-pipeline.dds.data" . | sha256sum }}
+
+        {{- if .Values.config.enabled }}
+        checksum/module-config: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- end }}
+
+        {{- if .Values.configmaps }}
+        checksum/custom-config: {{ include (print .Template.BasePath "/custom-configmap.yaml") . | sha256sum }}
+        {{- end }}
+
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+
+      labels:
+        {{- include "capture-pipeline.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{ if .Values.global }}
+        {{- if .Values.imagePullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecret }}
+        {{- else if .Values.global.imagePullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.global.imagePullSecret }}
+        {{- end }}
+      {{- else }}
+        {{- if .Values.imagePullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecret }}
+        {{- end }}
+      {{- end }}
+
+      serviceAccountName: {{ include "capture-pipeline.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+
+      {{- with .Values.initContainers }}
+      initContainers:
+        {{- range $ic := . }}
+        {{- include "capture-pipeline.initContainer" (dict "root" $ "ic" $ic) | nindent 8 }}
+        {{- end }}
+      {{- end }}
+
+      {{ include "capture-pipeline.hostnet" . | nindent 6 }}
+      {{- if .Values.hostPID }}
+      hostPID: true
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds | default 0 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          {{- if .Values.command }}
+          command:
+            {{- range .Values.command }}
+            - {{ . }}
+            {{- end }}
+          {{- end }}
+
+          {{- if .Values.arguments }}
+          args:
+            {{- range .Values.arguments }}
+            - {{ . }}
+            {{- end }}
+          {{- end }}
+
+          {{- if .Values.service.enabled }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.internalPort }}
+              protocol: TCP
+          {{- end }}
+          {{- if .Values.startupProbe }}
+          startupProbe:
+            {{- toYaml .Values.startupProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          {{- end }}
+
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+
+          volumeMounts:
+          {{- include "capture-pipeline.commonVolumeMounts" . | nindent 12 }}
+
+          {{- range $configmap := .Values.configmaps }}
+            - name: {{ $configmap.configMapName }}
+              mountPath: {{ $configmap.mountPath }}
+          {{- end }}
+
+          {{- if or .Values.volumeMounts .Values.extraVolumeMounts }}
+          {{- with .Values.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- end }}
+
+          env:
+          {{- if .Values.global }}
+          {{- include "capture-pipeline.envEntries" .Values.global.env | nindent 12 }}
+          {{- include "capture-pipeline.envFromSecretEntries" .Values.global.envFromSecrets | nindent 12 }}
+          {{- end }}
+          {{- include "capture-pipeline.dds.env" . | nindent 12 }}
+          {{- include "capture-pipeline.envEntries" .Values.env | nindent 12 }}
+          {{- include "capture-pipeline.envFromSecretEntries" .Values.envFromSecrets | nindent 12 }}
+
+      volumes:
+      {{- include "capture-pipeline.commonVolume" . | nindent 8 }}
+
+      {{- range $configmap := .Values.configmaps }}
+        - name: {{ $configmap.configMapName }}
+          configMap:
+            name: {{ $configmap.configMapName }}
+      {{- end }}
+
+      {{- if or .Values.volumes .Values.extraVolumes }}
+      {{- with .Values.volumes }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- end }}
+
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.runtimeClassName }}
+      runtimeClassName: {{ .Values.runtimeClassName }}
+      {{- end }}

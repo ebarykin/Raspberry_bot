@@ -1,0 +1,15 @@
+{{- /* The umbrella renders the global DDS ConfigMap itself when global.dds.create is true. */}}
+{{- if not (include "capture-pipeline.dds.globalCreated" .) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "capture-pipeline.dds.configmapName" . }}
+  labels:
+  {{- if .Values.global }}
+    {{- include "global.labels" . | nindent 4 }}
+  {{- else }}
+    {{- include "capture-pipeline.labels" . | nindent 4 }}
+  {{- end }}
+data:
+  {{- include "capture-pipeline.dds.data" . | nindent 2 }}
+{{- end }}

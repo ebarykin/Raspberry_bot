@@ -1,0 +1,13 @@
+.git
+.github
+**/__pycache__
+**/*.pyc
+**/*.pyo
+.pytest_cache
+tests
+snapshots
+*.md
+!README.md
+scripts/static
+scripts/preview_quad.py
+scripts/netem_lab.py
