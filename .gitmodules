@@ -1,0 +1,3 @@
+[submodule "services/webrtc-client-go"]
+	path = services/webrtc-client-go
+	url = https://github.com/ebarykin/webrtc-client-go.git
