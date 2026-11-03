@@ -1,0 +1,16 @@
+# Raspberry Pi 5: OV5647 via libcamerasrc. privileged — ADR 0009.
+# Build images on the Pi (or load prebuilt arm64). Do not rebuild on every start:
+#   docker compose -f compose.yaml -f deploy/compose.robot.yaml up --no-build
+services:
+  capture:
+    privileged: true
+    restart: unless-stopped
+    volumes:
+      - /run/udev:/run/udev:ro
+      - /dev:/dev
+
+  gateway:
+    restart: unless-stopped
+
+  webrtc:
+    restart: unless-stopped

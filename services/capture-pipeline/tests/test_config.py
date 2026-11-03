@@ -89,6 +89,7 @@ def test_runtime_and_shipped_configs_are_appsrc_only() -> None:
         ROOT / "configs" / "jetson-duo-one-s.yaml",
         ROOT / "configs" / "jetson-delta.yaml",
         ROOT / "configs" / "laptop-emulate.yaml",
+        ROOT / "configs" / "raspbot.yaml",
     ):
         text = path.read_text(encoding="utf-8")
         assert "\n  mode:" not in text
@@ -169,6 +170,62 @@ def test_laptop_emulate_yaml_loads() -> None:
     assert "x264enc name=enc0" in launch
     assert "bitrate=1100" in launch
     assert "abr good" in launch
+
+
+def test_raspbot_yaml_loads() -> None:
+    cfg = load_config(ROOT / "configs" / "raspbot.yaml")
+    assert cfg.is_rpi
+    assert not cfg.is_jetson
+    assert not cfg.is_emulate
+    assert cfg.video.width == 1280
+    assert cfg.video.height == 720
+    assert cfg.video.fps == 30
+    assert cfg.abr.profiles["good"].bitrate_kbps == 2500
+    assert cfg.overlay.font == "Sans Bold 24"
+    assert cfg.encoder.iframe_period == 5
+    assert cfg.encoder.tune == "zerolatency"
+    assert cfg.encoder.speed_preset == "ultrafast"
+    cam = cfg.cameras[0]
+    assert cam.source_type == "libcamerasrc"
+    assert cam.camera_name == "/base/axi/pcie@1000120000/rp1/i2c@88000/ov5647@36"
+    assert cam.pixel_format == "NV12"
+    assert cam.rtsp_port == 8554
+    assert cam.mount == "/live"
+    launch = build_capture(cfg, cam, profile_label="good")
+    assert "libcamerasrc" in launch
+    assert "ov5647@36" in launch
+    assert "format=NV12" in launch
+    assert "x264enc name=enc0" in launch
+    assert "bitrate=2500" in launch
+    assert "tune=zerolatency" in launch
+    assert "speed-preset=ultrafast" in launch
+    assert 'font-desc="Sans Bold 24"' in launch
+    assert "nvarguscamerasrc" not in launch
+    assert "nvv4l2h264enc" not in launch
+
+
+def test_platform_capture_yaml_matches_raspbot() -> None:
+    bundled = load_config(ROOT / "configs" / "raspbot.yaml")
+    platform = load_config(
+        ROOT.parents[1] / "config" / "capture-pipeline.yaml"
+    )
+    assert platform.source == bundled.source
+    assert platform.is_rpi
+    assert platform.cameras[0].camera_name == bundled.cameras[0].camera_name
+    assert platform.cameras[0].rtsp_port == 8554
+    assert platform.abr.profiles["good"].bitrate_kbps == 2500
+    assert platform.overlay.font == bundled.overlay.font
+
+
+def test_rpi_libcamerasrc_requires_camera_name() -> None:
+    raw = {
+        "source": "rpi",
+        "abr": _ABR,
+        "video": {"width": 1280, "height": 720, "fps": 30},
+        "cameras": [{"id": "cam0", "source_type": "libcamerasrc"}],
+    }
+    with pytest.raises(ValueError, match="camera_name required"):
+        Config.from_dict(raw)
 
 
 def test_critical_profile_values() -> None:

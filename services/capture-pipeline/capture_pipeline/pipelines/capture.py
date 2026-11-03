@@ -30,7 +30,7 @@ def build_capture(
     )
     out_fps = fps if fps is not None else active.fps
     label = profile_label or cfg.abr.default_profile
-    jetson = not cfg.is_emulate
+    jetson = cfg.is_jetson
     src = build_source(cfg, camera)
     teleop = build_teleop_branch(
         cfg,

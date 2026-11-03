@@ -29,7 +29,7 @@ System name: teleop-robot. ROS 2 runs only inside Ubuntu 24.04 containers.
 
 ## Deferred
 
-ADR 0006: steering is SG90 on Pi GPIO at 50 Hz; traction stays on the PCA9685. Remaining ROS packages, Compose, other Dockerfiles, and the subtree or submodule import wait for both source URLs. Exception: `robot_gateway`, `robot_interfaces`, and the `robot-gateway` image (ADR 0008).
+ADR 0006: steering is SG90 on Pi GPIO at 50 Hz; traction stays on the PCA9685. Remaining ROS packages and root Compose wait. Exceptions: `robot_gateway`, `robot_interfaces`, the `robot-gateway` image (ADR 0008), and the `capture-pipeline` image (ADR 0009).
 
 ## Workflow
 

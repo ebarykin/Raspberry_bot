@@ -21,6 +21,12 @@ DEFAULT_VBV_HORIZON_S = 0.2
 DEFAULT_GOP_S = 0.33
 DEFAULT_OVERLAY_CLOCK = False
 DEFAULT_OVERLAY_TIME_FORMAT = "%H:%M:%S.%f"
+DEFAULT_OVERLAY_FONT = "Sans Bold 20"
+DEFAULT_X264_TUNE = "zerolatency"
+DEFAULT_X264_SPEED_PRESET = "ultrafast"
+DEFAULT_X264_THREADS = 0
+DEFAULT_X264_OPTION_STRING = "rc-lookahead=0:sync-lookahead=0"
+DEFAULT_X264_IFRAME_PERIOD = 5
 DEFAULT_CAMERA_PARKTRONIC = False
 DEFAULT_PARKTRONIC_HFOV_DEG = 110.0
 DEFAULT_PARKTRONIC_VFOV_DEG = 79.6
@@ -58,13 +64,24 @@ DEFAULT_ABR_DEFAULT_PROFILE = "good"
 DEFAULT_ABR_MIN_DWELL_S = 5.0
 SOURCE_JETSON = "jetson"
 SOURCE_EMULATE = "emulate"
-SUPPORTED_SOURCES = frozenset({SOURCE_JETSON, SOURCE_EMULATE})
+SOURCE_RPI = "rpi"
+SUPPORTED_SOURCES = frozenset({SOURCE_JETSON, SOURCE_EMULATE, SOURCE_RPI})
 SOURCE_TYPE_ARGUS = "nvarguscamerasrc"
 SOURCE_TYPE_V4L2 = "v4l2src"
 SOURCE_TYPE_NVV4L2 = "nvv4l2camerasrc"
 SOURCE_TYPE_TEST = "videotestsrc"
+SOURCE_TYPE_LIBCAMERA = "libcamerasrc"
 SUPPORTED_CAMERA_SOURCE_TYPES = frozenset(
-    {SOURCE_TYPE_ARGUS, SOURCE_TYPE_V4L2, SOURCE_TYPE_NVV4L2, SOURCE_TYPE_TEST}
+    {
+        SOURCE_TYPE_ARGUS,
+        SOURCE_TYPE_V4L2,
+        SOURCE_TYPE_NVV4L2,
+        SOURCE_TYPE_TEST,
+        SOURCE_TYPE_LIBCAMERA,
+    }
+)
+_RPI_CAMERA_SOURCE_TYPES = frozenset(
+    {SOURCE_TYPE_LIBCAMERA, SOURCE_TYPE_V4L2, SOURCE_TYPE_TEST}
 )
 # v4l2src и nvv4l2camerasrc открывают /dev/videoN; Argus берёт sensor_id.
 _DEVICE_SOURCE_TYPES = frozenset({SOURCE_TYPE_V4L2, SOURCE_TYPE_NVV4L2})
@@ -123,6 +140,11 @@ class EncoderConfig:
     vbv_size: int
     vbv_horizon_s: float
     gop_s: float
+    iframe_period: int = DEFAULT_X264_IFRAME_PERIOD
+    tune: str = DEFAULT_X264_TUNE
+    speed_preset: str = DEFAULT_X264_SPEED_PRESET
+    threads: int = DEFAULT_X264_THREADS
+    option_string: str = DEFAULT_X264_OPTION_STRING
 
 @dataclass(frozen=True)
 class ParktronicOverlayConfig:
@@ -147,6 +169,7 @@ class UndistortConfig:
 class OverlayConfig:
     clock: bool
     time_format: str
+    font: str = DEFAULT_OVERLAY_FONT
 
 
 @dataclass(frozen=True)
@@ -186,6 +209,7 @@ class CameraConfig:
     source_type: str
     device: str | None
     pixel_format: str | None
+    camera_name: str | None
     ros_name: str | None
     nav_enabled: bool
     parktronic: bool
@@ -212,6 +236,14 @@ class Config:
     @property
     def is_emulate(self) -> bool:
         return self.source == SOURCE_EMULATE
+
+    @property
+    def is_rpi(self) -> bool:
+        return self.source == SOURCE_RPI
+
+    @property
+    def is_jetson(self) -> bool:
+        return self.source == SOURCE_JETSON
 
     @classmethod
     def from_dict(cls, raw: dict) -> "Config":
@@ -312,6 +344,13 @@ class Config:
             )
             if missing_enc:
                 raise ValueError(f"encoder requires {missing_enc} on jetson")
+        tune = str(enc_raw.get("tune", DEFAULT_X264_TUNE)).strip()
+        speed_preset = str(
+            enc_raw.get("speed_preset", DEFAULT_X264_SPEED_PRESET)
+        ).strip()
+        option_string = str(
+            enc_raw.get("option_string", DEFAULT_X264_OPTION_STRING)
+        ).strip()
         enc = EncoderConfig(
             control_rate=int(enc_raw.get("control_rate", DEFAULT_CONTROL_RATE)),
             maxperf_enable=bool(enc_raw.get("maxperf_enable", DEFAULT_MAXPERF_ENABLE)),
@@ -321,6 +360,13 @@ class Config:
             vbv_size=int(enc_raw.get("vbv_size", DEFAULT_VBV_SIZE)),
             vbv_horizon_s=float(enc_raw.get("vbv_horizon_s", DEFAULT_VBV_HORIZON_S)),
             gop_s=float(enc_raw.get("gop_s", DEFAULT_GOP_S)),
+            iframe_period=int(
+                enc_raw.get("iframe_period", DEFAULT_X264_IFRAME_PERIOD)
+            ),
+            tune=tune,
+            speed_preset=speed_preset,
+            threads=int(enc_raw.get("threads", DEFAULT_X264_THREADS)),
+            option_string=option_string,
         )
         if enc.control_rate not in (0, 1):
             raise ValueError("encoder.control_rate must be 0 (VBR) or 1 (CBR)")
@@ -332,6 +378,18 @@ class Config:
             raise ValueError("encoder.vbv_horizon_s must be > 0")
         if enc.gop_s <= 0:
             raise ValueError("encoder.gop_s must be > 0")
+        if enc.iframe_period <= 0:
+            raise ValueError("encoder.iframe_period must be > 0")
+        if enc.threads < 0:
+            raise ValueError("encoder.threads must be >= 0 (0 = auto)")
+        if not enc.tune:
+            raise ValueError("encoder.tune must be a non-empty x264 tune")
+        if not enc.speed_preset:
+            raise ValueError(
+                "encoder.speed_preset must be a non-empty x264 speed-preset"
+            )
+        if not enc.option_string:
+            raise ValueError("encoder.option_string must be a non-empty x264 option-string")
         cameras = _parse_cameras(raw.get("cameras") or [], source)
         _require_unique([(c.rtsp_port, c.mount) for c in cameras], "camera (rtsp_port, mount) bindings must be unique")
         if source == SOURCE_JETSON:
@@ -394,7 +452,12 @@ def _parse_cameras(cams_raw: list[Any], source: str) -> list[CameraConfig]:
             raise ValueError(
                 f"camera {cam_raw.get('id', idx)} flip_method must be 0..7, got {flip_method}"
             )
-        default_src = SOURCE_TYPE_TEST if source == SOURCE_EMULATE else SOURCE_TYPE_ARGUS
+        if source == SOURCE_EMULATE:
+            default_src = SOURCE_TYPE_TEST
+        elif source == SOURCE_RPI:
+            default_src = SOURCE_TYPE_LIBCAMERA
+        else:
+            default_src = SOURCE_TYPE_ARGUS
         raw_src = cam_raw.get("source_type")
         source_type = default_src if raw_src is None else str(raw_src).strip().lower()
         if source_type not in SUPPORTED_CAMERA_SOURCE_TYPES:
@@ -402,15 +465,33 @@ def _parse_cameras(cams_raw: list[Any], source: str) -> list[CameraConfig]:
                 f"camera {cam_raw.get('id', idx)} source_type must be one of "
                 f"{sorted(SUPPORTED_CAMERA_SOURCE_TYPES)}, got {source_type!r}"
             )
+        if source == SOURCE_RPI and source_type not in _RPI_CAMERA_SOURCE_TYPES:
+            raise ValueError(
+                f"camera {cam_raw.get('id', idx)} source_type must be one of "
+                f"{sorted(_RPI_CAMERA_SOURCE_TYPES)} when source=rpi, "
+                f"got {source_type!r}"
+            )
+        if source == SOURCE_JETSON and source_type == SOURCE_TYPE_LIBCAMERA:
+            raise ValueError(
+                f"camera {cam_raw.get('id', idx)}: libcamerasrc is not a jetson source"
+            )
         raw_dev = cam_raw.get("device")
         device = str(raw_dev).strip() if raw_dev else None
         if source_type in _DEVICE_SOURCE_TYPES and not device:
             raise ValueError(
                 f"camera {cam_raw.get('id', idx)}: device required for {source_type}"
             )
+        raw_name = cam_raw.get("camera_name")
+        camera_name = str(raw_name).strip() if raw_name else None
+        if source_type == SOURCE_TYPE_LIBCAMERA and not camera_name:
+            raise ValueError(
+                f"camera {cam_raw.get('id', idx)}: camera_name required for libcamerasrc"
+            )
         raw_pix = cam_raw.get("pixel_format")
         if raw_pix is not None:
             pixel_format = str(raw_pix).strip() or None
+        elif source_type == SOURCE_TYPE_LIBCAMERA:
+            pixel_format = "NV12"
         elif source_type in _DEVICE_SOURCE_TYPES:
             pixel_format = "UYVY"
         else:
@@ -451,6 +532,7 @@ def _parse_cameras(cams_raw: list[Any], source: str) -> list[CameraConfig]:
                 source_type=source_type,
                 device=device,
                 pixel_format=pixel_format,
+                camera_name=camera_name,
                 ros_name=ros_name,
                 nav_enabled=nav_enabled,
                 parktronic=parktronic,
@@ -473,6 +555,7 @@ def _parse_overlay(overlay_raw: Any) -> OverlayConfig:
         return OverlayConfig(
             clock=DEFAULT_OVERLAY_CLOCK,
             time_format=DEFAULT_OVERLAY_TIME_FORMAT,
+            font=DEFAULT_OVERLAY_FONT,
         )
     if not isinstance(overlay_raw, dict):
         raise ValueError("overlay must be a mapping")
@@ -484,9 +567,13 @@ def _parse_overlay(overlay_raw: Any) -> OverlayConfig:
     time_format = str(overlay_raw.get("time_format", DEFAULT_OVERLAY_TIME_FORMAT)).strip()
     if not time_format:
         raise ValueError("overlay.time_format must be a non-empty strftime pattern")
+    font = str(overlay_raw.get("font", DEFAULT_OVERLAY_FONT)).strip()
+    if not font:
+        raise ValueError("overlay.font must be a non-empty Pango font description")
     return OverlayConfig(
         clock=bool(overlay_raw.get("clock", DEFAULT_OVERLAY_CLOCK)),
         time_format=time_format,
+        font=font,
     )
 
 

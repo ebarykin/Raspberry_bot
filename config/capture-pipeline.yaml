@@ -1,0 +1,64 @@
+# Pi 5 + Camera ov5647 — libcamerasrc (NV12/PiSP) + software x264enc.
+# camera_name: rpicam-hello --list-cameras
+#
+# Mapped from gst-rtsp-latency YAML:
+#   rtsp.port/mount     → cameras[].rtsp_port / mount
+#   encoder.bitrate_bps → abr.profiles.good.bitrate_kbps (2500)
+#   shm                 → unused (this process uses appsink/appsrc, not POSIX shm)
+#
+# Keep in sync with services/capture-pipeline/configs/raspbot.yaml
+
+source: rpi
+
+rtsp:
+  host: 0.0.0.0
+  suspend_mode: reset
+
+control_ws:
+  enabled: true
+  host: 127.0.0.1
+  port: 8591
+
+abr:
+  default_profile: good
+  min_dwell_s: 5.0
+  profiles:
+    good:     { fps: 30, bitrate_kbps: 2500 }
+    normal:   { fps: 30, bitrate_kbps: 1800 }
+    degraded: { fps: 24, bitrate_kbps: 1200 }
+    bad:      { fps: 18, bitrate_kbps: 800 }
+    critical: { fps: 12, bitrate_kbps: 400 }
+
+video:
+  width: 1280
+  height: 720
+  fps: 30
+
+encoder:
+  iframe_period: 5
+  tune: zerolatency
+  speed_preset: ultrafast
+  threads: 0
+  option_string: "rc-lookahead=0:sync-lookahead=0"
+
+overlay:
+  clock: false
+  font: "Sans Bold 24"
+
+nav:
+  sink_type: fakesink
+  encoding: compressed
+  width: 1280
+  height: 720
+  fps: 15
+  jpeg_quality: 80
+
+cameras:
+  - id: cam0
+    rtsp_port: 8554
+    mount: /live
+    enabled: true
+    source_type: libcamerasrc
+    camera_name: "/base/axi/pcie@1000120000/rp1/i2c@88000/ov5647@36"
+    pixel_format: NV12
+    nav_enabled: false

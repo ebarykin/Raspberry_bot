@@ -425,7 +425,7 @@ class CameraSlot:
             enc = pipeline.get_by_name(ENCODER_ELEMENT_NAME)
             if enc is None:
                 raise RuntimeError(f"missing {ENCODER_ELEMENT_NAME}")
-            if not cfg.is_emulate:
+            if cfg.is_jetson:
                 enc.set_property("bitrate", bitrate_bps)
                 _try_set(enc, "peak-bitrate", peak)
                 _try_set(enc, "vbv-size", jetson_vbv_size(cfg.encoder, bitrate_bps))
@@ -450,7 +450,7 @@ class CameraSlot:
                 self._abr_acc = 0
             try:
                 if enc is not None:
-                    if cfg.is_emulate:
+                    if not cfg.is_jetson:
                         enc.set_property("bitrate", max(1, previous_bitrate // 1000))
                     else:
                         enc.set_property("bitrate", previous_bitrate)

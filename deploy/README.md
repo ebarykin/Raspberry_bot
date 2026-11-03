@@ -1,8 +1,13 @@
 # deploy
 
-Оверлеи Compose появятся вместе с базовым файлом, когда в ADR 0006 будут оба URL. Руль уже выбран. Образ `robot-gateway` собирается отдельно.
+Базовый `compose.yaml` поднимает `capture`, `gateway` и `webrtc`. `motion-supervisor` и `chassis-controller` ещё не входят.
 
-- `compose.dev.yaml` — разработка и монтирование исходников
-- `compose.robot.yaml` — Raspberry Pi, доступ к устройствам, перезапуск
+- `compose.dev.yaml` — ноут: `videotestsrc`, без privileged
+- `compose.robot.yaml` — Raspberry Pi: OV5647, privileged (ADR 0009), перезапуск
 
-Базовый `compose.yaml` будет в корне репозитория. На роботе позже запускаются заранее собранные образы с фиксированными версиями, а не сборка при каждом старте.
+```bash
+docker compose -f compose.yaml -f deploy/compose.dev.yaml up --build
+docker compose -f compose.yaml -f deploy/compose.robot.yaml up --no-build
+```
+
+На роботе конфиг не монтируют с диска: он уже в образе. Git и rsync на плату не нужны. С ноутбука: `docker --context raspbot compose -f compose.yaml -f deploy/compose.robot.yaml up --build`. В эксплуатации — `--no-build`.

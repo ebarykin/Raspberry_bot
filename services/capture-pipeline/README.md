@@ -3,6 +3,7 @@
 Мультикамерный low-latency RTSP H.264 publisher:
 
 - **Jetson**: `nvarguscamerasrc`/`v4l2src` → `tee` → `nvv4l2h264enc` → `appsink`
+- **Raspberry Pi 5**: `libcamerasrc` → `tee` → `x264enc` → `appsink`
 - **Laptop/CI**: `videotestsrc` → `tee` → `x264enc` → `appsink`
 - **RTSP**: encoded AU из `appsink` через thread-safe bridge поступают в `appsrc` → `rtph264pay`
 - **NAV** (optional, `cameras[].nav_enabled` + `ros_name`): вторая ветка после `tee` → 1280×720@15, один формат `nav.encoding` (`raw` bgr8 или `compressed` JPEG) + `camera_info` (`pipelines/nav.py`)
@@ -47,6 +48,7 @@ capture-pipeline/
     bind_dev_to_sn.sh        # SN GMSL-камер (ручная диагностика)
     static/preview_quad.html
   tests/
+  Dockerfile               # Raspberry bot: Debian 13, libcamerasrc, без ROS
   docker/Dockerfile.jp62   # роверы: JetPack 6.2, Ubuntu 22.04, ROS Humble
   docker/Dockerfile.jp72   # робособаки: JetPack 7.2, Ubuntu 24.04, ROS Jazzy
   docker/install.sh        # общая установка; её вызывают оба Dockerfile
@@ -61,6 +63,7 @@ capture-pipeline/
 |----------|--------|----------|
 | `jetson` | [`configs/jetson-quad.yaml`](./configs/jetson-quad.yaml) | ZED X / Argus → HW encode |
 | `jetson` | [`configs/jetson-duo-one-s.yaml`](./configs/jetson-duo-one-s.yaml) | 1× ZED X One S, 640×400 |
+| `rpi` | [`configs/raspbot.yaml`](./configs/raspbot.yaml) | Pi 5 OV5647 `libcamerasrc` → `x264enc` |
 | `emulate` | [`configs/laptop-emulate.yaml`](./configs/laptop-emulate.yaml) | `videotestsrc` (`smpte`, `ball`, …) → `x264enc` |
 
 Capture всегда PLAYING, даже без RTSP-клиента. Это убирает Argus/NVENC preroll
@@ -77,6 +80,18 @@ capture lifetime от него не зависит.
 | right | cam3 | `rtsp://<host>:8589/live` |
 
 **Emulate**: `cam0..cam3` → `:8554`–`:8557` (`smpte` / `ball` / `snow` / `circular`).
+
+**Raspberry bot**: `cam0` → `rtsp://127.0.0.1:8554/live`. Образ: `Dockerfile` в корне сервиса (Debian 13, без ROS 2).
+
+```bash
+# ноут (videotestsrc :8554–:8557)
+docker compose -f compose.yaml -f deploy/compose.dev.yaml up --build
+
+# Pi (OV5647 :8554). Образ собрать на плате заранее.
+docker compose -f compose.yaml -f deploy/compose.robot.yaml up --no-build
+```
+
+Если `libcamerasrc` не видит OV5647, в `deploy/compose.robot.yaml` добавьте `/usr/share/libcamera`. `privileged` и CSI — ADR 0009.
 
 ## Control WebSocket (`:8591`)
 
@@ -568,7 +583,7 @@ Ubuntu образа совпадает с Ubuntu платы, иначе смон
 | робособаки | 7.2, L4T R39.2 | `docker/Dockerfile.jp72` | `ubuntu:24.04` | Jazzy |
 
 HW-плагины (`nvarguscamerasrc`, `nvv4l2h264enc`) в эти образы не ставятся.
-Helm и `docker/compose.yaml` монтируют `/dev` и tegra с хоста.
+На Raspberry bot Jetson Compose нет: захват поднимается `docker run` из корневого `Dockerfile` (ADR 0009).
 `rbfimagesink` собирается в образе из [`third_party/gstreamer_ros_babel_fish`](./third_party/gstreamer_ros_babel_fish)
 (`COPY` + colcon, без `git clone`).
 
@@ -581,8 +596,7 @@ Helm-чарт — целевой запуск в кластере и по умо
 (старый rsync без `.git` заменить clone'ом).
 
 - **Образ (registry)** — код приложения (`capture_pipeline/`, entrypoint).
-- **Git на плате** — `docker/compose.yaml`, `scripts/jetson_docker.sh`, `configs/*.yaml`
-  (YAML монтируется в контейнер; compose/скрипт на хосте запускают контейнер).
+- **Git на плате** — `configs/*.yaml` (YAML монтируется в контейнер).
 - `make capture-git-sync` / `SYNC_GIT=1` обновляет хостовую обвязку, не образ.
 - Образ: `capture-up` / `capture-pull` (`:latest` = последний зелёный `develop`).
 
@@ -604,12 +618,9 @@ make capture-up JETSON_SSH=jetson SYNC_GIT=1 DOCKER_CONFIG=configs/jetson-duo-on
 
 ```bash
 bash scripts/jetson_docker.sh up configs/jetson-duo-one-s.yaml
-# вручную compose:
-docker compose --project-directory . -f docker/compose.yaml \
-  --env-file docker/.env pull
-docker compose --project-directory . -f docker/compose.yaml \
-  --env-file docker/.env up -d
 ```
+
+На Raspberry bot Compose нет. Образ и `docker run` — в разделе Raspberry bot выше.
 
 Запасной путь без registry — сборка на плате:
 

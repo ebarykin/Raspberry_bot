@@ -102,7 +102,7 @@ def main(argv: list[str] | None = None) -> int:
     enabled_count = sum(1 for c in cfg.cameras if c.enabled)
     sensor_part = (
         f"sensor {v.sensor_width}x{v.sensor_height}@{v.fps} -> "
-        if not cfg.is_emulate
+        if cfg.is_jetson
         else ""
     )
     logger.info(
@@ -121,7 +121,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     watch: ArgusStderrWatch | None = None
-    if not cfg.is_emulate:
+    if cfg.is_jetson:
         watch = ArgusStderrWatch()
         watch.start()
         logger.info("argus stderr watch started (camera provider failures exit the capture loop)")

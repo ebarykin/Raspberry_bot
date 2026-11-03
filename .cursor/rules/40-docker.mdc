@@ -6,11 +6,12 @@ alwaysApply: false
 
 # Docker
 
-The `robot-gateway` image exists. Other Dockerfiles and Compose wait for the capture-pipeline and webrtc-client-go URLs in ADR 0006. When they appear:
+The `robot-gateway`, `capture-pipeline`, and `webrtc-client-go` images exist. Root Compose starts `capture`, `gateway`, and `webrtc` (`compose.yaml` + `deploy/compose.dev.yaml` or `deploy/compose.robot.yaml`). Remaining ROS images wait.
 
 - One Dockerfile per service. ROS images use an explicit `ros:jazzy-*` tag.
 - A Go image uses a multi-stage build and a minimal runtime base.
+- `capture-pipeline` uses Debian 13, not `ros:jazzy-*`. It has no ROS 2.
 - Any build context that copies source has a `.dockerignore`.
-- `privileged: true` needs an ADR that names the device it unlocks.
+- `privileged: true` needs an ADR that names the device it unlocks. Capture on Pi 5: ADR 0009, OV5647 / libcamera.
 - `network_mode: host` does not by itself share Cyclone DDS memory between containers. Check the Cyclone configuration before relying on shared memory.
 - The robot runs pinned images. It does not rebuild on every start.

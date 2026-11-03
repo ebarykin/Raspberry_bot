@@ -531,7 +531,7 @@ class CameraService:
             )
             return
         was_starting = self._start_in_flight is slot
-        if not self._cfg.is_emulate and (
+        if self._cfg.is_jetson and (
             is_argus_provider_failure(reason) or self._argus_restarting
         ):
             logger.error(

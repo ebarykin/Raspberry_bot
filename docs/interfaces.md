@@ -8,7 +8,9 @@
 
 `webrtc-client-go` подключается к `robot-gateway` по WebSocket и говорит протоколом rosbridge. Клиент не линкует библиотеки ROS 2 и не открывает Cyclone DDS.
 
-Сразу после открытия сокета клиент один раз вызывает `/robot/get_capabilities`. Дальше идут `advertise` и поток `publish`. Повторять вызов сервиса на каждой команде не нужно.
+Целевой транспорт — rosbridge: сразу после открытия сокета клиент один раз вызывает `/robot/get_capabilities`. Дальше идут `advertise` и поток `publish`. Повторять вызов сервиса на каждой команде не нужно.
+
+Текущий `webrtc-client-go` ещё не вызывает сервис. Он ждёт envelope `robot-config` с `ws://127.0.0.1:4000/`. Этот сокет поднимает `robot-gateway` из того же `capabilities.yaml`.
 
 ```json
 {"op":"call_service","service":"/robot/get_capabilities","args":{}}
@@ -18,7 +20,7 @@
 
 ## RTSP
 
-`capture-pipeline` публикует видео, `webrtc-client-go` его читает. Кодирование и процесс, который слушает RTSP, ещё не назначены. Пока захват не отдаёт endpoint сам, RTSP-сервер — отдельное решение, а не узел ROS 2.
+`capture-pipeline` захватывает OV5647 через `libcamerasrc`, кодирует `x264enc` и сам держит `GstRTSPServer`. Endpoint на роботе: `rtsp://127.0.0.1:8554/live`. `webrtc-client-go` читает этот URL. ROS 2 в этом контуре нет.
 
 ## Граф ROS 2
 

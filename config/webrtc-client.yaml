@@ -1,0 +1,35 @@
+# Platform WebRTC client. RTSP comes from capture-pipeline :8554/live.
+# Signaling/TURN are the 224 stack. Data :4000 is the robot backend (not rosbridge :9090).
+#
+# Keep the RTSP URL in sync with config/capture-pipeline.yaml.
+
+signaling_ws_uri: ws://90.156.157.224:4443
+signaling_ws_origin: http://90.156.157.224
+ice_servers:
+  - urls: turn:90.156.157.224:3478?transport=udp
+    username: webrtc
+    credential: webrtc
+
+room: raspbot
+peer_id_prefix: raspbot_224
+
+peers:
+  - kind: video
+    label: rtsp-video-front
+    camera: front
+    enabled: true
+    device: rtsp://127.0.0.1:8554/live
+
+  - kind: data
+    label: telemetry
+    type: websocket
+    uri: ws://127.0.0.1:4000/
+    filter_labels:
+      - command-ack
+      - robot-config
+      - telemetry
+
+log_level: INFO
+aioice:
+  consent_failures: 4
+  consent_interval: 5

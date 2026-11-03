@@ -1,6 +1,6 @@
 # Архитектура
 
-Пять сервисов. ROS 2, шлюз и документация лежат в этом репозитории, `capture-pipeline` входит git subtree, `webrtc-client-go` — Git submodule. У `robot-gateway` уже есть Dockerfile. ROS 2 остаётся на роботе. Видео идёт отдельным контуром и в ROS 2 не входит.
+Пять сервисов. ROS 2, шлюз и документация лежат в этом репозитории, `capture-pipeline` входит git subtree, `webrtc-client-go` — Git submodule. У `robot-gateway` и `capture-pipeline` уже есть Dockerfile. ROS 2 остаётся на роботе. Видео идёт отдельным контуром и в ROS 2 не входит.
 
 ```mermaid
 flowchart LR
@@ -24,12 +24,12 @@ flowchart LR
 
 `chassis-controller` говорит с железом шасси. Тяга: IBT-2 (BTS7960), ШИМ с PCA9685, RPWM и LPWM; по таймауту оба входа гасятся. Руль на первом этапе: SG90 на GPIO Raspberry Pi, 50 Гц, не канал той PCA9685. Другие контроллеры называются `{подсистема}-controller`. Для физического робота нужна ещё независимая защита на уровне привода или MCU; программный таймаут её не заменяет.
 
-`capture-pipeline` входит git subtree, захватывает камеру и публикует RTSP. Кто кодирует кадр и кто держит RTSP-сервер, пока не назначено. Если захват сам не открывает RTSP endpoint, сервер потока выбирается отдельным решением и не тянет видео в ROS 2.
+`capture-pipeline` входит git subtree, захватывает OV5647 через `libcamerasrc`, кодирует кадр `x264enc` и публикует RTSP с `GstRTSPServer` на `rtsp://127.0.0.1:8554/live`. ROS 2 в этом сервисе нет. Образ и privileged для CSI — ADR 0009.
 
 ## Что ещё не собрано
 
-Полный робот намеренно не запускается. Есть пакеты шлюза и его Dockerfile. Остальные пакеты, Compose и импорт кода ждут URL в ADR 0006.
+Полный робот намеренно не запускается. Compose поднимает захват, шлюз и WebRTC-клиент. Пакеты шасси ещё не собраны.
 
-Базовый `compose.yaml` будет в корне. `deploy/compose.dev.yaml` и `deploy/compose.robot.yaml` добавят режим разработки и режим Raspberry Pi. На роботе в эксплуатации используются образы с фиксированными версиями.
+Базовый `compose.yaml` — `capture`, `gateway`, `webrtc`. `deploy/compose.dev.yaml` — ноут, `deploy/compose.robot.yaml` — Pi. На роботе в эксплуатации используются образы с фиксированными версиями.
 
 Граф ROS 2 ходит по Cyclone DDS (`rmw_cyclonedds_cpp`) и остаётся на роботе. Локальный discovery — `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST`. Подробности — в [docs/ros2.md](ros2.md).

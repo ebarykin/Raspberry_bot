@@ -1,0 +1,34 @@
+# Common services. Overlay picks laptop vs robot:
+#   docker compose -f compose.yaml -f deploy/compose.dev.yaml up --build
+#   docker compose -f compose.yaml -f deploy/compose.robot.yaml up --no-build
+name: teleop-robot
+
+services:
+  capture:
+    image: teleop-capture-pipeline
+    build:
+      context: services/capture-pipeline
+      dockerfile: Dockerfile
+    container_name: teleop-capture
+    network_mode: host
+
+  gateway:
+    image: teleop-robot-gateway
+    build:
+      context: .
+      dockerfile: services/robot-gateway/Dockerfile
+    container_name: teleop-gateway
+    network_mode: host
+    environment:
+      CAPABILITIES_FILE: /config/capabilities.yaml
+
+  webrtc:
+    image: teleop-webrtc-client
+    build:
+      context: services/webrtc-client-go
+      dockerfile: Dockerfile
+    container_name: teleop-webrtc
+    network_mode: host
+    depends_on:
+      - capture
+      - gateway

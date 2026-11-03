@@ -172,21 +172,25 @@ def _teleop_cpu(
 ) -> str:
     v = cfg.video
     kbps = max(1, int(bitrate_bps) // 1000)
-    in_w, in_h = (v.width, v.height) if cfg.is_emulate else (v.sensor_width, v.sensor_height)
+    in_w, in_h = (v.width, v.height) if not cfg.is_jetson else (v.sensor_width, v.sensor_height)
     scale = ""
     if in_w != v.width or in_h != v.height:
         scale = f"! videoscale ! video/x-raw,width={v.width},height={v.height} "
+    e = cfg.encoder
+    key_int = min(int(fps), int(e.iframe_period))
     return (
         f"{LEAKY_QUEUE} "
         f"! videorate drop-only=true name={RATE_ELEMENT_NAME} max-rate={fps} "
         f"{scale}"
-        f"! textoverlay name={OVERLAY_ELEMENT_NAME} font-desc=\"Sans Bold 20\" "
+        f'! textoverlay name={OVERLAY_ELEMENT_NAME} font-desc="{cfg.overlay.font}" '
         f"halignment=left valignment=top shaded-background=true "
         f'text="abr {profile_label} {fps}fps {kbps}k" '
         f"! videoconvert ! video/x-raw,format=I420 "
-        f"! x264enc name={ENCODER_ELEMENT_NAME} tune=zerolatency speed-preset=ultrafast "
-        f"bitrate={kbps} key-int-max={min(int(fps), 5)} "
-        f"rc-lookahead=0 vbv-buf-capacity=300 bframes=0 "
+        f"! x264enc name={ENCODER_ELEMENT_NAME} tune={e.tune} "
+        f"speed-preset={e.speed_preset} threads={e.threads} "
+        f"bitrate={kbps} key-int-max={key_int} "
+        f'option-string="{e.option_string}" '
+        f"vbv-buf-capacity=300 bframes=0 "
         f"! h264parse config-interval=-1 "
         f"! video/x-h264,stream-format=byte-stream,alignment=au "
         f"{_encoded_sink()}"

@@ -6,7 +6,7 @@
 
 Тяговый двигатель шасси Remo Hobby управляется платой IBT-2 на драйвере BTS7960. ШИМ тяги формирует PCA9685 по I2C. Газ через RC ESC не используется. Руль — сервопривод SG90. У PCA9685 одна частота на все каналы: 50 Гц для серво и килогерцы для моста на одной микросхеме не совмещаются.
 
-Клиент телеуправления уже назван `webrtc-client-go`. Видео входит git subtree, WebRTC-клиент — submodule. URL обоих репозиториев ещё не заданы.
+Клиент телеуправления уже назван `webrtc-client-go`. Видео входит git subtree, WebRTC-клиент — submodule. Subtree захвата импортирован; Dockerfile захвата — ADR 0009.
 
 ## Решение
 
@@ -20,10 +20,10 @@
 
 Владелец `GetCapabilities` — `robot-gateway`, см. ADR 0008.
 
-Dockerfile сервиса `robot-gateway` разрешён: шлюзу не нужны URL видео и клиента. Корневой Compose и образы остальных сервисов ждут эти URL.
+Dockerfile сервиса `robot-gateway` разрешён: шлюзу не нужны URL видео и клиента. Dockerfile `capture-pipeline` разрешён после импорта subtree: Debian 13, без ROS 2, CSI OV5647, см. ADR 0009. Корневой Compose и пакеты шасси по-прежнему ждут отдельного решения.
 
 ## Последствия
 
-Пакеты `robot_gateway` и `robot_interfaces` и образ шлюза уже есть. Пакет `chassis-controller`, остальные Dockerfile, Compose и импорт subtree или submodule ждут два URL. Тип команды движения по-прежнему не утверждён.
+Пакеты `robot_gateway` и `robot_interfaces`, образ шлюза и образ захвата уже есть. Пакет `chassis-controller` и корневой Compose ещё не собраны. Тип команды движения по-прежнему не утверждён.
 
 ADR 0001 для клиента уточняется: код `webrtc-client-go` лежит в подмодуле, в этом репозитории хранится только gitlink на `services/webrtc-client-go`.

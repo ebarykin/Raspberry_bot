@@ -1,0 +1,12 @@
+# Laptop / CI: videotestsrc, live YAML from the working tree.
+#   docker compose -f compose.yaml -f deploy/compose.dev.yaml up --build
+services:
+  capture:
+    volumes:
+      - ./services/capture-pipeline/configs/laptop-emulate.yaml:/config/config.yaml:ro
+  gateway:
+    volumes:
+      - ./config/capabilities.yaml:/config/capabilities.yaml:ro
+  webrtc:
+    volumes:
+      - ./config/webrtc-client.yaml:/config/config.yaml:ro

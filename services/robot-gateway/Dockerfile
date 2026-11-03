@@ -20,6 +20,7 @@ COPY ros2_interfaces/robot_interfaces src/robot_interfaces
 COPY services/robot-gateway/robot_gateway src/robot_gateway
 COPY config/capabilities.yaml /config/capabilities.yaml
 COPY services/robot-gateway/entrypoint.sh /entrypoint.sh
+COPY services/robot-gateway/robot_config_ws.py /robot_config_ws.py
 
 RUN . /opt/ros/jazzy/setup.sh \
     && colcon build --symlink-install \

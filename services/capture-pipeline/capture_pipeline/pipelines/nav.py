@@ -171,7 +171,7 @@ def apply_nav_runtime(cfg: Config, gst: Any) -> Config:
     if not any(c.enabled and c.nav_enabled for c in cfg.cameras):
         return cfg
     if (
-        not cfg.is_emulate
+        cfg.is_jetson
         and cfg.nav.encoding == "compressed"
         and not nvjpegenc_registered(gst)
     ):
@@ -281,7 +281,7 @@ def build_nav_branch(
 
 
 def _input_wh(cfg: Config) -> tuple[int, int]:
-    if cfg.is_emulate:
+    if not cfg.is_jetson:
         return cfg.video.width, cfg.video.height
     return cfg.video.sensor_width, cfg.video.sensor_height
 
